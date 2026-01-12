@@ -1,7 +1,9 @@
 from typing import List, Dict, Optional, Union, Iterator, AsyncIterator
 import httpx
 from .types import ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk
+from .types import ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk
 from .exceptions import LLMRouterError
+from .factory import ProviderFactory
 
 # --- Synchronous Classes ---
 
@@ -50,11 +52,7 @@ class Client:
         self.chat = Chat(self)
 
     def _get_provider(self, config: ProviderConfig):
-        if config.provider_type == "openai":
-            from .providers.openai import OpenAIProvider
-            return OpenAIProvider(config)
-        else:
-            raise ValueError(f"不支持的提供商类型: {config.provider_type}")
+        return ProviderFactory.get_provider(config)
 
     def close(self):
         self._http_client.close()
@@ -112,11 +110,7 @@ class AsyncClient:
         self.chat = AsyncChat(self)
 
     def _get_provider(self, config: ProviderConfig):
-        if config.provider_type == "openai":
-            from .providers.openai import OpenAIProvider
-            return OpenAIProvider(config)
-        else:
-            raise ValueError(f"不支持的提供商类型: {config.provider_type}")
+        return ProviderFactory.get_provider(config)
 
     async def close(self):
         await self._http_client.aclose()
