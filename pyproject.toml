@@ -1,6 +1,6 @@
 [project]
 name = "llm-api-router"
-version = "0.1.0"
+version = "0.1.1"
 description = "A unified API routing library for Large Language Models"
 readme = "README.md"
 requires-python = ">=3.10"
