@@ -1,13 +1,20 @@
 [project]
 name = "llm-api-router"
 version = "0.1.0"
-description = "统一大语言模型 API 路由库"
+description = "A unified API routing library for Large Language Models"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "httpx>=0.27.0",
     "python-dotenv>=1.0.0",
 ]
+authors = [
+  { name="Allen", email="allen125423412@163.com" }
+]
+license = { text = "MIT" }
+
+[project.urls]
+Homepage = "https://github.com/Mikko-ww/llm-api-router"
 
 [project.optional-dependencies]
 dev = [
