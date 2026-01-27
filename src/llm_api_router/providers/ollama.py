@@ -1,6 +1,7 @@
 from typing import Dict, Any, Iterator, AsyncIterator
 import httpx
 import json
+from datetime import datetime
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
 from ..exceptions import AuthenticationError, RateLimitError, ProviderError
 from .base import BaseProvider
@@ -11,6 +12,9 @@ class OllamaProvider(BaseProvider):
     Ollama 提供本地运行的开源模型 API，支持 LLaMA、Mistral 等模型。
     默认运行在 http://localhost:11434
     """
+    
+    # Ollama 模型通常需要更长的响应时间，因为是本地运算
+    DEFAULT_TIMEOUT = 120.0
     
     def __init__(self, config: ProviderConfig):
         self.config = config
@@ -89,7 +93,6 @@ class OllamaProvider(BaseProvider):
         # Ollama 使用 ISO 时间戳，我们需要转换为 Unix 时间戳
         created_at = provider_response.get("created_at", "")
         try:
-            from datetime import datetime
             dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
             created = int(dt.timestamp())
         except Exception:
@@ -137,7 +140,6 @@ class OllamaProvider(BaseProvider):
         # 处理时间戳
         created_at = chunk_data.get("created_at", "")
         try:
-            from datetime import datetime
             dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
             created = int(dt.timestamp())
         except Exception:
@@ -171,7 +173,7 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=120.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT)
             if response.status_code != 200:
                 self._handle_error(response)
             return self.convert_response(response.json())
@@ -183,7 +185,7 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=120.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT)
             if response.status_code != 200:
                 self._handle_error(response)
             return self.convert_response(response.json())
@@ -198,7 +200,7 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=120.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT) as response:
                 if response.status_code != 200:
                     self._handle_error(response)
                 
@@ -225,7 +227,7 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=120.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT) as response:
                 if response.status_code != 200:
                     self._handle_error(response)
                 
