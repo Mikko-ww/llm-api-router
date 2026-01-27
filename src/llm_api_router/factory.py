@@ -14,6 +14,7 @@ class ProviderFactory:
         "zhipu": ("llm_api_router.providers.zhipu", "ZhipuProvider"),
         "aliyun": ("llm_api_router.providers.aliyun", "AliyunProvider"),
         "xai": ("llm_api_router.providers.xai", "XAIProvider"),
+        "ollama": ("llm_api_router.providers.ollama", "OllamaProvider"),
     }
 
     @classmethod

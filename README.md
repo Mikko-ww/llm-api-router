@@ -92,6 +92,14 @@ aliyun_config = ProviderConfig(
     default_model="qwen-max"
 )
 
+# Ollama (Local Models)
+ollama_config = ProviderConfig(
+    provider_type="ollama",
+    api_key="not-required",  # Ollama doesn't require an API key
+    base_url="http://localhost:11434",  # Default Ollama server URL
+    default_model="llama3.2"
+)
+
 # Initialize client with DeepSeek configuration
 with Client(deepseek_config) as client:
     # ... calling logic remains unchanged
@@ -146,6 +154,68 @@ asyncio.run(main())
 | **Google Gemini** | `gemini` | gemini-1.5-pro | Supports System Instruction |
 | **ZhipuAI** | `zhipu` | glm-4 | Automatically handles JWT authentication |
 | **Alibaba** | `aliyun` | qwen-max | Supports DashScope native protocol |
+| **Ollama** | `ollama` | llama3.2, mistral, etc. | Local models, no API key required |
+
+## Using Ollama (Local Models)
+
+[Ollama](https://ollama.com/) allows you to run open-source LLMs locally on your machine. This is perfect for:
+- Privacy-sensitive applications
+- Offline development
+- Cost-free experimentation with various models
+
+### Installing and Running Ollama
+
+1. **Install Ollama**: Visit [https://ollama.com/download](https://ollama.com/download) and follow the installation instructions for your OS.
+
+2. **Start the Ollama service** (it typically starts automatically after installation):
+   ```bash
+   ollama serve
+   ```
+
+3. **Pull a model**:
+   ```bash
+   ollama pull llama3.2
+   # or other models like:
+   # ollama pull mistral
+   # ollama pull codellama
+   ```
+
+4. **Verify the service is running**:
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+### Using Ollama with llm-api-router
+
+```python
+from llm_api_router import Client, ProviderConfig
+
+# Configure Ollama provider
+config = ProviderConfig(
+    provider_type="ollama",
+    api_key="not-required",  # Ollama doesn't require authentication
+    base_url="http://localhost:11434",  # Default Ollama server URL
+    default_model="llama3.2"  # Use any model you've pulled
+)
+
+# Use it just like any other provider
+with Client(config) as client:
+    response = client.chat.completions.create(
+        messages=[{"role": "user", "content": "Hello! Introduce yourself."}]
+    )
+    print(response.choices[0].message.content)
+    
+    # Streaming also works
+    stream = client.chat.completions.create(
+        messages=[{"role": "user", "content": "Write a short poem about AI"}],
+        stream=True
+    )
+    for chunk in stream:
+        if chunk.choices[0].delta.content:
+            print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+**Note**: Ollama uses NDJSON (newline-delimited JSON) for streaming, which is automatically handled by the adapter.
 
 ## Development & Testing
 

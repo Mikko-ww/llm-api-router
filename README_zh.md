@@ -92,6 +92,14 @@ aliyun_config = ProviderConfig(
     default_model="qwen-max"
 )
 
+# Ollama (本地模型)
+ollama_config = ProviderConfig(
+    provider_type="ollama",
+    api_key="not-required",  # Ollama 不需要 API 密钥
+    base_url="http://localhost:11434",  # 默认 Ollama 服务器 URL
+    default_model="llama3.2"
+)
+
 # 使用 DeepSeek 配置初始化客户端
 with Client(deepseek_config) as client:
     # ... 调用逻辑不变
@@ -146,6 +154,68 @@ asyncio.run(main())
 | **Google Gemini** | `gemini` | gemini-1.5-pro | 支持 System Instruction |
 | **ZhipuAI** | `zhipu` | glm-4 | 自动处理 JWT 鉴权 |
 | **Alibaba** | `aliyun` | qwen-max | 支持 DashScope 原生协议 |
+| **Ollama** | `ollama` | llama3.2, mistral 等 | 本地模型，无需 API 密钥 |
+
+## 使用 Ollama（本地模型）
+
+[Ollama](https://ollama.com/) 允许您在本地机器上运行开源大语言模型。这非常适合：
+- 隐私敏感的应用
+- 离线开发
+- 免费体验各种模型
+
+### 安装和运行 Ollama
+
+1. **安装 Ollama**：访问 [https://ollama.com/download](https://ollama.com/download) 并按照您的操作系统的安装说明进行操作。
+
+2. **启动 Ollama 服务**（通常在安装后会自动启动）：
+   ```bash
+   ollama serve
+   ```
+
+3. **拉取模型**：
+   ```bash
+   ollama pull llama3.2
+   # 或其他模型，如：
+   # ollama pull mistral
+   # ollama pull codellama
+   ```
+
+4. **验证服务是否运行**：
+   ```bash
+   curl http://localhost:11434/api/tags
+   ```
+
+### 在 llm-api-router 中使用 Ollama
+
+```python
+from llm_api_router import Client, ProviderConfig
+
+# 配置 Ollama 提供商
+config = ProviderConfig(
+    provider_type="ollama",
+    api_key="not-required",  # Ollama 不需要身份验证
+    base_url="http://localhost:11434",  # 默认 Ollama 服务器 URL
+    default_model="llama3.2"  # 使用您已拉取的任何模型
+)
+
+# 像使用其他提供商一样使用它
+with Client(config) as client:
+    response = client.chat.completions.create(
+        messages=[{"role": "user", "content": "你好！请介绍一下你自己。"}]
+    )
+    print(response.choices[0].message.content)
+    
+    # 流式响应也可以工作
+    stream = client.chat.completions.create(
+        messages=[{"role": "user", "content": "写一首关于人工智能的短诗"}],
+        stream=True
+    )
+    for chunk in stream:
+        if chunk.choices[0].delta.content:
+            print(chunk.choices[0].delta.content, end="", flush=True)
+```
+
+**注意**：Ollama 使用 NDJSON（换行分隔的 JSON）进行流式传输，适配器会自动处理。
 
 ## 开发与测试
 
