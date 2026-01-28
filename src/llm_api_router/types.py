@@ -1,5 +1,14 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple
+
+@dataclass
+class RetryConfig:
+    """重试配置"""
+    max_retries: int = 3  # 最大重试次数
+    initial_delay: float = 1.0  # 初始延迟（秒）
+    max_delay: float = 60.0  # 最大延迟（秒）
+    exponential_base: float = 2.0  # 指数退避基数
+    retry_on_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504)  # 需要重试的状态码
 
 @dataclass
 class ProviderConfig:
@@ -10,6 +19,8 @@ class ProviderConfig:
     default_model: Optional[str] = None
     extra_headers: Dict[str, str] = field(default_factory=dict)
     api_version: Optional[str] = None  # 主要用于 Azure
+    timeout: float = 60.0  # 请求超时时间（秒）
+    retry_config: Optional[RetryConfig] = None  # 重试配置，None表示使用默认配置
 
 @dataclass
 class Message:

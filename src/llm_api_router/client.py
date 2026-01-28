@@ -47,7 +47,7 @@ class Client:
     """同步客户端"""
     def __init__(self, config: ProviderConfig):
         self.config = config
-        self._http_client = httpx.Client()
+        self._http_client = httpx.Client(timeout=config.timeout)
         self._provider = self._get_provider(config)
         self.chat = Chat(self)
 
@@ -105,7 +105,7 @@ class AsyncClient:
     """异步客户端"""
     def __init__(self, config: ProviderConfig):
         self.config = config
-        self._http_client = httpx.AsyncClient()
+        self._http_client = httpx.AsyncClient(timeout=config.timeout)
         self._provider = self._get_provider(config)
         self.chat = AsyncChat(self)
 
