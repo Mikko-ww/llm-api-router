@@ -3,7 +3,8 @@ import httpx
 import json
 from datetime import datetime
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class OllamaProvider(BaseProvider):
@@ -13,11 +14,8 @@ class OllamaProvider(BaseProvider):
     默认运行在 http://localhost:11434
     """
     
-    # Ollama 模型通常需要更长的响应时间，因为是本地运算
-    DEFAULT_TIMEOUT = 120.0
-    
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         # Ollama 默认运行在本地 11434 端口
         self.base_url = (config.base_url or "http://localhost:11434").rstrip("/")
         # Ollama API 不需要认证密钥（本地服务），但保留 headers 以防用户有自定义配置
@@ -153,44 +151,31 @@ class OllamaProvider(BaseProvider):
             choices=choices
         )
 
-    def _handle_error(self, response: httpx.Response):
-        """处理 Ollama API 错误响应"""
-        try:
-            error_data = response.json()
-            msg = error_data.get("error", response.text)
-        except Exception:
-            msg = response.text
-
-        if response.status_code == 404:
-            raise ProviderError(f"Ollama 模型未找到或服务未运行: {msg}", provider="ollama", status_code=404)
-        elif response.status_code >= 500:
-            raise ProviderError(f"Ollama 服务器错误: {msg}", provider="ollama", status_code=response.status_code)
-        else:
-            raise ProviderError(f"Ollama 错误 {response.status_code}: {msg}", provider="ollama", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         """执行同步请求到 Ollama"""
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Ollama")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"网络错误: {str(e)}", provider="ollama")
+            self.handle_request_error(e, "Ollama")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         """执行异步请求到 Ollama"""
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Ollama")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"网络错误: {str(e)}", provider="ollama")
+            self.handle_request_error(e, "Ollama")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         """执行同步流式请求到 Ollama
@@ -200,9 +185,9 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Ollama")
                 
                 # Ollama 使用 NDJSON 格式：每行一个 JSON 对象
                 for line in response.iter_lines():
@@ -214,10 +199,10 @@ class OllamaProvider(BaseProvider):
                         # 如果收到 done=true，停止迭代
                         if data.get("done"):
                             break
-                    except json.JSONDecodeError:
-                        continue
+                    except json.JSONDecodeError as e:
+                        raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Ollama")
         except httpx.RequestError as e:
-            raise ProviderError(f"流式请求网络错误: {str(e)}", provider="ollama")
+            self.handle_request_error(e, "Ollama")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         """执行异步流式请求到 Ollama
@@ -227,9 +212,9 @@ class OllamaProvider(BaseProvider):
         payload = self.convert_request(request)
         url = f"{self.base_url}/api/chat"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.DEFAULT_TIMEOUT) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Ollama")
                 
                 # Ollama 使用 NDJSON 格式：每行一个 JSON 对象
                 async for line in response.aiter_lines():
@@ -241,7 +226,7 @@ class OllamaProvider(BaseProvider):
                         # 如果收到 done=true，停止迭代
                         if data.get("done"):
                             break
-                    except json.JSONDecodeError:
-                        continue
+                    except json.JSONDecodeError as e:
+                        raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Ollama")
         except httpx.RequestError as e:
-            raise ProviderError(f"流式请求网络错误: {str(e)}", provider="ollama")
+            self.handle_request_error(e, "Ollama")

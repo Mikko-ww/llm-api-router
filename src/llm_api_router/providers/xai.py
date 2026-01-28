@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class XAIProvider(BaseProvider):
     """xAI (Grok) Provider Adapter"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://api.x.ai/v1").rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {config.api_key}",
@@ -80,49 +81,37 @@ class XAIProvider(BaseProvider):
             choices=choices
         )
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            msg = error_data.get("error", {}).get("message", response.text)
-        except Exception:
-            msg = response.text
-
-        if response.status_code == 401:
-            raise AuthenticationError(f"xAI Auth Failed: {msg}", provider="xai", status_code=401)
-        elif response.status_code == 429:
-            raise RateLimitError(f"xAI Rate Limit: {msg}", provider="xai", status_code=429)
-        else:
-            raise ProviderError(f"xAI Error {response.status_code}: {msg}", provider="xai", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "xAI")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="xai")
+            self.handle_request_error(e, "xAI")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "xAI")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="xai")
+            self.handle_request_error(e, "xAI")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "xAI")
                 
                 for line in response.iter_lines():
                     if not line: continue
@@ -132,18 +121,18 @@ class XAIProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="xAI")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="xai")
+            self.handle_request_error(e, "xAI")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "xAI")
                 
                 async for line in response.aiter_lines():
                     if not line: continue
@@ -153,7 +142,7 @@ class XAIProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="xAI")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="xai")
+            self.handle_request_error(e, "xAI")

@@ -147,6 +147,60 @@ async def main():
 asyncio.run(main())
 ```
 
+## Error Handling and Retry
+
+The library provides robust error handling with automatic retry for transient failures:
+
+### Automatic Retry
+
+Requests are automatically retried on:
+- Network errors (connection failures, timeouts)
+- Rate limit errors (HTTP 429)
+- Server errors (HTTP 5xx)
+
+```python
+from llm_api_router import Client, ProviderConfig, RetryConfig
+
+# Custom retry configuration
+retry_config = RetryConfig(
+    max_retries=5,              # Maximum retry attempts (default: 3)
+    initial_delay=1.0,          # Initial delay in seconds (default: 1.0)
+    max_delay=60.0,             # Maximum delay in seconds (default: 60.0)
+    exponential_base=2.0,       # Exponential backoff base (default: 2.0)
+)
+
+config = ProviderConfig(
+    provider_type="openai",
+    api_key="your-api-key",
+    retry_config=retry_config,
+    timeout=30.0  # Request timeout in seconds (default: 60.0)
+)
+```
+
+### Exception Handling
+
+```python
+from llm_api_router.exceptions import (
+    AuthenticationError,
+    RateLimitError,
+    RetryExhaustedError,
+    LLMRouterError
+)
+
+try:
+    response = client.chat.completions.create(
+        messages=[{"role": "user", "content": "Hello"}]
+    )
+except AuthenticationError as e:
+    print(f"Invalid API key: {e.message}")
+except RetryExhaustedError as e:
+    print(f"Request failed after retries: {e.message}")
+except LLMRouterError as e:
+    print(f"Error: {e.message}")
+```
+
+For detailed error handling documentation, see [docs/error-handling.md](docs/error-handling.md).
+
 ## Supported Model Providers
 
 | Provider | provider_type | Typical Models | Notes |
