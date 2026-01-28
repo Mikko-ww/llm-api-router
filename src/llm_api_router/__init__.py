@@ -15,10 +15,10 @@ from .exceptions import (
     RateLimitError,
     ProviderError,
     StreamError,
-    TimeoutError,
+    RequestTimeoutError,
     InvalidRequestError,
     NotFoundError,
-    PermissionError,
+    APIPermissionError,
     MaxRetriesExceededError
 )
 
@@ -38,9 +38,9 @@ __all__ = [
     "RateLimitError",
     "ProviderError",
     "StreamError",
-    "TimeoutError",
+    "RequestTimeoutError",
     "InvalidRequestError",
     "NotFoundError",
-    "PermissionError",
+    "APIPermissionError",
     "MaxRetriesExceededError",
 ]

@@ -1,11 +1,12 @@
 """Retry utilities for handling transient failures."""
 import time
 import asyncio
+import random
 from functools import wraps
 from typing import Callable, TypeVar, Any
 import httpx
 from .types import RetryConfig
-from .exceptions import MaxRetriesExceededError, RateLimitError, TimeoutError as LLMTimeoutError
+from .exceptions import MaxRetriesExceededError, RequestTimeoutError
 
 T = TypeVar('T')
 
@@ -52,7 +53,7 @@ def with_retry(retry_config: RetryConfig):
                     
                     # If this was the last attempt, raise
                     if attempt >= retry_config.max_retries:
-                        raise LLMTimeoutError(
+                        raise RequestTimeoutError(
                             f"Request timeout after {retry_config.max_retries} retries",
                             details={"attempts": attempt + 1}
                         ) from e
@@ -127,7 +128,7 @@ def with_retry_async(retry_config: RetryConfig):
                     
                     # If this was the last attempt, raise
                     if attempt >= retry_config.max_retries:
-                        raise LLMTimeoutError(
+                        raise RequestTimeoutError(
                             f"Request timeout after {retry_config.max_retries} retries",
                             details={"attempts": attempt + 1}
                         ) from e

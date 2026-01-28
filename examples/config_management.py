@@ -1,4 +1,12 @@
-"""Example: Configuration management using environment variables."""
+"""Example: Configuration management using environment variables.
+
+WARNING: This example hardcodes API keys for demonstration purposes only.
+NEVER hardcode API keys in production code. Instead, use:
+- Environment variables
+- Secure configuration files (not committed to version control)
+- Secret management services (AWS Secrets Manager, HashiCorp Vault, etc.)
+- Operating system credential stores
+"""
 import os
 from llm_api_router import Client, ProviderConfig
 

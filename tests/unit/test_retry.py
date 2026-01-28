@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 import httpx
 from llm_api_router.types import RetryConfig
 from llm_api_router.retry import with_retry, with_retry_async
-from llm_api_router.exceptions import MaxRetriesExceededError, TimeoutError
+from llm_api_router.exceptions import MaxRetriesExceededError, RequestTimeoutError
 
 
 class TestRetryConfig:

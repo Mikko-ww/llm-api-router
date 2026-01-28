@@ -3,12 +3,13 @@ from typing import List, Optional, Dict, Any, Tuple
 import os
 import json
 import yaml
+import random
 from pathlib import Path
 
 
 @dataclass
 class RetryConfig:
-    """重试配置"""
+    """Retry configuration with exponential backoff."""
     max_retries: int = 3
     initial_delay: float = 1.0  # seconds
     max_delay: float = 60.0  # seconds
@@ -17,7 +18,7 @@ class RetryConfig:
     retry_on_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504)
     
     def calculate_delay(self, attempt: int) -> float:
-        """计算重试延迟（指数退避）
+        """Calculate retry delay with exponential backoff.
         
         Args:
             attempt: Current retry attempt (0-indexed)
@@ -25,8 +26,6 @@ class RetryConfig:
         Returns:
             Delay in seconds
         """
-        import random
-        
         delay = min(
             self.initial_delay * (self.exponential_base ** attempt),
             self.max_delay

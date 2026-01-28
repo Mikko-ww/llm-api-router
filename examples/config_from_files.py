@@ -1,4 +1,12 @@
-"""Example: Load configuration from JSON and YAML files."""
+"""Example: Load configuration from JSON and YAML files.
+
+WARNING: This example hardcodes API keys for demonstration purposes only.
+NEVER hardcode API keys in production code. Instead, use:
+- Environment variables
+- Secure configuration files (not committed to version control)
+- Secret management services (AWS Secrets Manager, HashiCorp Vault, etc.)
+- Operating system credential stores
+"""
 import json
 import yaml
 import tempfile

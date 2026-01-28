@@ -53,7 +53,7 @@ class TestProviderFactory:
             default_model="test-model"
         )
         
-        with pytest.raises(ValueError, match="不支持的提供商类型"):
+        with pytest.raises(ValueError, match="Unsupported provider type"):
             ProviderFactory.get_provider(config)
     
     def test_register_new_provider(self):
