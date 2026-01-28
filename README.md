@@ -1,5 +1,9 @@
 # Unified LLM API Router Library (llm-api-router)
 
+[![Tests](https://github.com/Mikko-ww/llm-api-router/actions/workflows/tests.yml/badge.svg)](https://github.com/Mikko-ww/llm-api-router/actions/workflows/tests.yml)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 `llm-api-router` is a Python library designed to provide a unified, consistent, and type-safe interface for various Large Language Model (LLM) providers (such as OpenAI, Anthropic, DeepSeek, Google Gemini, etc.). It strictly adheres to the design style of the OpenAI Python SDK, minimizing the learning curve and supporting zero-code modification when switching underlying model providers.
 
 ## Core Features
