@@ -24,3 +24,23 @@ class ProviderError(LLMRouterError):
 class StreamError(LLMRouterError):
     """流式处理错误"""
     pass
+
+class TimeoutError(LLMRouterError):
+    """请求超时错误"""
+    pass
+
+class InvalidRequestError(LLMRouterError):
+    """无效请求错误 (HTTP 400)"""
+    pass
+
+class NotFoundError(LLMRouterError):
+    """资源未找到 (HTTP 404)"""
+    pass
+
+class PermissionError(LLMRouterError):
+    """权限错误 (HTTP 403)"""
+    pass
+
+class MaxRetriesExceededError(LLMRouterError):
+    """超过最大重试次数"""
+    pass

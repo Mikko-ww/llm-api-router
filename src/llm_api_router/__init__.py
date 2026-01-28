@@ -1,13 +1,25 @@
 """LLM API Router - Unified API for multiple LLM providers."""
 
 from .client import Client, AsyncClient
-from .types import ProviderConfig, Message, UnifiedRequest, UnifiedResponse, UnifiedChunk
+from .types import (
+    ProviderConfig,
+    RetryConfig,
+    Message,
+    UnifiedRequest,
+    UnifiedResponse,
+    UnifiedChunk
+)
 from .exceptions import (
     LLMRouterError,
     AuthenticationError,
     RateLimitError,
     ProviderError,
-    StreamError
+    StreamError,
+    TimeoutError,
+    InvalidRequestError,
+    NotFoundError,
+    PermissionError,
+    MaxRetriesExceededError
 )
 
 __version__ = "0.1.2"
@@ -16,6 +28,7 @@ __all__ = [
     "Client",
     "AsyncClient",
     "ProviderConfig",
+    "RetryConfig",
     "Message",
     "UnifiedRequest",
     "UnifiedResponse",
@@ -25,4 +38,9 @@ __all__ = [
     "RateLimitError",
     "ProviderError",
     "StreamError",
+    "TimeoutError",
+    "InvalidRequestError",
+    "NotFoundError",
+    "PermissionError",
+    "MaxRetriesExceededError",
 ]
