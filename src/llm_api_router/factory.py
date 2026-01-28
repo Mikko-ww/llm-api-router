@@ -27,7 +27,7 @@ class ProviderFactory:
         provider_type = config.provider_type
         
         if provider_type not in cls._PROVIDER_MAPPING:
-            raise ValueError(f"不支持的提供商类型: {provider_type}")
+            raise ValueError(f"Unsupported provider type: {provider_type}")
 
         module_path, class_name = cls._PROVIDER_MAPPING[provider_type]
         
