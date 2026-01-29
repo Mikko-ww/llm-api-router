@@ -1,7 +1,10 @@
 from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
+    ProviderConfig, ChunkChoice, Tool, ToolCall, FunctionCall
+)
 from ..exceptions import StreamError
 from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
@@ -50,15 +53,63 @@ class AnthropicProvider(BaseProvider):
             data["top_p"] = request.top_p
         if request.stop is not None:
             data["stop_sequences"] = request.stop
+        
+        # Add tools support (Anthropic format)
+        if request.tools is not None:
+            data["tools"] = self._convert_tools_to_anthropic(request.tools)
+        if request.tool_choice is not None:
+            data["tool_choice"] = self._convert_tool_choice_to_anthropic(request.tool_choice)
             
         return data
+    
+    def _convert_tools_to_anthropic(self, tools: List[Tool]) -> List[Dict[str, Any]]:
+        """Convert Tool objects to Anthropic format"""
+        result = []
+        for tool in tools:
+            if tool.function:
+                tool_dict: Dict[str, Any] = {
+                    "name": tool.function.name,
+                    "description": tool.function.description,
+                    "input_schema": tool.function.parameters  # Anthropic uses input_schema instead of parameters
+                }
+                result.append(tool_dict)
+        return result
+    
+    def _convert_tool_choice_to_anthropic(self, tool_choice: Any) -> Dict[str, Any]:
+        """Convert tool_choice to Anthropic format"""
+        if isinstance(tool_choice, str):
+            if tool_choice == "auto":
+                return {"type": "auto"}
+            elif tool_choice == "required" or tool_choice == "any":
+                return {"type": "any"}
+            elif tool_choice == "none":
+                return {"type": "auto", "disable_parallel_tool_use": True}
+        elif isinstance(tool_choice, dict):
+            # Specific tool choice
+            if "function" in tool_choice:
+                return {"type": "tool", "name": tool_choice["function"]["name"]}
+        return {"type": "auto"}
 
     def convert_response(self, provider_response: Dict[str, Any]) -> UnifiedResponse:
         content_blocks = provider_response.get("content", [])
         text_content = ""
+        tool_calls = []
+        
+        # Parse content blocks - Anthropic can have both text and tool_use blocks
         for block in content_blocks:
             if block.get("type") == "text":
                 text_content += block.get("text", "")
+            elif block.get("type") == "tool_use":
+                # Convert Anthropic tool_use to OpenAI-style tool_call
+                tool_call = ToolCall(
+                    id=block.get("id", ""),
+                    type="function",
+                    function=FunctionCall(
+                        name=block.get("name", ""),
+                        arguments=json.dumps(block.get("input", {}))
+                    )
+                )
+                tool_calls.append(tool_call)
 
         usage_data = provider_response.get("usage", {})
         usage = Usage(
@@ -74,7 +125,11 @@ class AnthropicProvider(BaseProvider):
             model=provider_response.get("model", ""),
             choices=[Choice(
                 index=0,
-                message=Message(role="assistant", content=text_content),
+                message=Message(
+                    role="assistant",
+                    content=text_content if text_content else None,
+                    tool_calls=tool_calls if tool_calls else None
+                ),
                 finish_reason=provider_response.get("stop_reason") or "stop"
             )],
             usage=usage
@@ -96,6 +151,46 @@ class AnthropicProvider(BaseProvider):
                     choices=[ChunkChoice(
                         index=data.get("index", 0),
                         delta=Message(role="assistant", content=text),
+                        finish_reason=None
+                    )]
+                )
+            elif delta_data.get("type") == "input_json_delta":
+                # Tool input streaming - in Anthropic, tool inputs are streamed as JSON chunks
+                # For simplicity, we'll accumulate these or just return them as-is
+                # This is a partial tool call that needs to be accumulated by the client
+                partial_json = delta_data.get("partial_json", "")
+                return UnifiedChunk(
+                    id="",
+                    object="chat.completion.chunk",
+                    created=0,
+                    model="",
+                    choices=[ChunkChoice(
+                        index=data.get("index", 0),
+                        delta=Message(role="assistant", content=None),  # No text content for tool calls
+                        finish_reason=None
+                    )]
+                )
+        elif event_type == "content_block_start":
+            # Handle tool_use block start
+            content_block = data.get("content_block", {})
+            if content_block.get("type") == "tool_use":
+                # Create a tool call with the initial info (id, name)
+                tool_call = ToolCall(
+                    id=content_block.get("id", ""),
+                    type="function",
+                    function=FunctionCall(
+                        name=content_block.get("name", ""),
+                        arguments=""  # Arguments will come in deltas
+                    )
+                )
+                return UnifiedChunk(
+                    id="",
+                    object="chat.completion.chunk",
+                    created=0,
+                    model="",
+                    choices=[ChunkChoice(
+                        index=data.get("index", 0),
+                        delta=Message(role="assistant", content=None, tool_calls=[tool_call]),
                         finish_reason=None
                     )]
                 )

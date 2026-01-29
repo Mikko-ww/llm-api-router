@@ -4,7 +4,7 @@ import json
 from ..types import (
     UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
     ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse, 
-    Embedding, EmbeddingUsage
+    Embedding, EmbeddingUsage, Tool, ToolCall, FunctionCall, FunctionDefinition
 )
 from ..exceptions import StreamError
 from ..retry import with_retry, with_retry_async
@@ -36,13 +36,49 @@ class OpenAIProvider(BaseProvider):
             data["top_p"] = request.top_p
         if request.stop is not None:
             data["stop"] = request.stop
+        
+        # Add tools support
+        if request.tools is not None:
+            data["tools"] = self._convert_tools_to_openai(request.tools)
+        if request.tool_choice is not None:
+            data["tool_choice"] = request.tool_choice
+        
         return data
+    
+    def _convert_tools_to_openai(self, tools: List[Tool]) -> List[Dict[str, Any]]:
+        """Convert Tool objects to OpenAI format"""
+        result = []
+        for tool in tools:
+            tool_dict: Dict[str, Any] = {
+                "type": tool.type
+            }
+            if tool.function:
+                function_dict: Dict[str, Any] = {
+                    "name": tool.function.name,
+                    "description": tool.function.description,
+                    "parameters": tool.function.parameters
+                }
+                if tool.function.strict is not None:
+                    function_dict["strict"] = tool.function.strict
+                tool_dict["function"] = function_dict
+            result.append(tool_dict)
+        return result
 
     def convert_response(self, provider_response: Dict[str, Any]) -> UnifiedResponse:
         choices = []
         for c in provider_response.get("choices", []):
             msg_data = c.get("message", {})
-            message = Message(role=msg_data.get("role", ""), content=msg_data.get("content", ""))
+            
+            # Parse tool_calls if present
+            tool_calls = None
+            if "tool_calls" in msg_data and msg_data["tool_calls"]:
+                tool_calls = self._parse_tool_calls(msg_data["tool_calls"])
+            
+            message = Message(
+                role=msg_data.get("role", ""),
+                content=msg_data.get("content"),
+                tool_calls=tool_calls
+            )
             choices.append(Choice(
                 index=c.get("index", 0),
                 message=message,
@@ -65,11 +101,37 @@ class OpenAIProvider(BaseProvider):
             usage=usage
         )
     
+    def _parse_tool_calls(self, tool_calls_data: List[Dict[str, Any]]) -> List[ToolCall]:
+        """Parse tool_calls from OpenAI response format"""
+        result = []
+        for tc in tool_calls_data:
+            func_data = tc.get("function", {})
+            tool_call = ToolCall(
+                id=tc.get("id", ""),
+                type=tc.get("type", "function"),
+                function=FunctionCall(
+                    name=func_data.get("name", ""),
+                    arguments=func_data.get("arguments", "{}")
+                )
+            )
+            result.append(tool_call)
+        return result
+    
     def _convert_chunk(self, chunk_data: Dict[str, Any]) -> UnifiedChunk:
         choices = []
         for c in chunk_data.get("choices", []):
             delta_data = c.get("delta", {})
-            delta = Message(role=delta_data.get("role", ""), content=delta_data.get("content", ""))
+            
+            # Parse tool_calls if present in delta
+            tool_calls = None
+            if "tool_calls" in delta_data and delta_data["tool_calls"]:
+                tool_calls = self._parse_tool_calls(delta_data["tool_calls"])
+            
+            delta = Message(
+                role=delta_data.get("role", ""),
+                content=delta_data.get("content"),
+                tool_calls=tool_calls
+            )
             choices.append(ChunkChoice(
                 index=c.get("index", 0),
                 delta=delta,
