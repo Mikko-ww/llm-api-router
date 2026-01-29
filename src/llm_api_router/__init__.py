@@ -35,6 +35,7 @@ from .exceptions import (
     StreamError,
     RetryExhaustedError,
 )
+from .logging_config import LogConfig, setup_logging, get_logger
 
 __version__ = "0.1.2"
 
@@ -74,4 +75,8 @@ __all__ = [
     "NetworkError",
     "StreamError",
     "RetryExhaustedError",
+    # Logging
+    "LogConfig",
+    "setup_logging",
+    "get_logger",
 ]

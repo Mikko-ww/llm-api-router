@@ -1,5 +1,8 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import List, Optional, Dict, Any, Tuple, Union, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .logging_config import LogConfig
 
 @dataclass
 class RetryConfig:
@@ -21,6 +24,7 @@ class ProviderConfig:
     api_version: Optional[str] = None  # 主要用于 Azure
     timeout: float = 60.0  # 请求超时时间（秒）
     retry_config: Optional[RetryConfig] = None  # 重试配置，None表示使用默认配置
+    log_config: Optional['LogConfig'] = None  # 日志配置，None表示使用默认配置
 
 @dataclass
 class Message:
@@ -76,6 +80,7 @@ class UnifiedRequest:
     stop: Optional[List[str]] = None
     tools: Optional[List[Tool]] = None  # Function calling: tools available to the model
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None  # "none", "auto", "required", or specific tool
+    request_id: Optional[str] = None  # Unique request ID for tracking
 
 @dataclass
 class Usage:

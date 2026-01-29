@@ -1,6 +1,7 @@
 from typing import Dict, Any, Iterator, AsyncIterator, List
 import httpx
 import json
+import time
 from ..types import (
     UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
     ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse, 
@@ -148,35 +149,94 @@ class OpenAIProvider(BaseProvider):
 
     @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
+        start_time = time.time()
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
+        
+        # Log request
+        log_extra = {
+            "provider": "OpenAI",
+            "model": request.model or self.config.default_model,
+            "message_count": len(request.messages),
+        }
+        if request.request_id:
+            log_extra["request_id"] = request.request_id
+        
+        self.logger.info("Sending chat completion request", extra=log_extra)
+        
         try:
             response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            latency_ms = int((time.time() - start_time) * 1000)
+            
             if response.status_code != 200:
-                self.handle_error_response(response, "OpenAI")
-            return self.convert_response(response.json())
+                self.handle_error_response(response, "OpenAI", request.request_id)
+            
+            result = self.convert_response(response.json())
+            
+            # Log successful response
+            log_extra["latency_ms"] = latency_ms
+            log_extra["tokens"] = result.usage.total_tokens
+            self.logger.info("Chat completion successful", extra=log_extra)
+            
+            return result
         except httpx.RequestError as e:
-            self.handle_request_error(e, "OpenAI")
+            self.handle_request_error(e, "OpenAI", request.request_id)
 
     @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
+        start_time = time.time()
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
+        
+        # Log request
+        log_extra = {
+            "provider": "OpenAI",
+            "model": request.model or self.config.default_model,
+            "message_count": len(request.messages),
+        }
+        if request.request_id:
+            log_extra["request_id"] = request.request_id
+        
+        self.logger.info("Sending async chat completion request", extra=log_extra)
+        
         try:
             response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            latency_ms = int((time.time() - start_time) * 1000)
+            
             if response.status_code != 200:
-                self.handle_error_response(response, "OpenAI")
-            return self.convert_response(response.json())
+                self.handle_error_response(response, "OpenAI", request.request_id)
+            
+            result = self.convert_response(response.json())
+            
+            # Log successful response
+            log_extra["latency_ms"] = latency_ms
+            log_extra["tokens"] = result.usage.total_tokens
+            self.logger.info("Async chat completion successful", extra=log_extra)
+            
+            return result
         except httpx.RequestError as e:
-            self.handle_request_error(e, "OpenAI")
+            self.handle_request_error(e, "OpenAI", request.request_id)
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
+        
+        # Log request
+        log_extra = {
+            "provider": "OpenAI",
+            "model": request.model or self.config.default_model,
+            "message_count": len(request.messages),
+            "stream": True,
+        }
+        if request.request_id:
+            log_extra["request_id"] = request.request_id
+        
+        self.logger.info("Starting stream request", extra=log_extra)
+        
         try:
             with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self.handle_error_response(response, "OpenAI")
+                    self.handle_error_response(response, "OpenAI", request.request_id)
                 
                 for line in response.iter_lines():
                     if not line:
@@ -184,6 +244,7 @@ class OpenAIProvider(BaseProvider):
                     if line.startswith("data: "):
                         data_str = line[6:]
                         if data_str.strip() == "[DONE]":
+                            self.logger.debug("Stream completed", extra=log_extra)
                             break
                         try:
                             data = json.loads(data_str)
@@ -191,7 +252,7 @@ class OpenAIProvider(BaseProvider):
                         except json.JSONDecodeError as e:
                             raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenAI")
         except httpx.RequestError as e:
-            self.handle_request_error(e, "OpenAI")
+            self.handle_request_error(e, "OpenAI", request.request_id)
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)

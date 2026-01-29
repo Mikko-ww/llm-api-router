@@ -15,6 +15,7 @@ from ..exceptions import (
     TimeoutError,
     NetworkError,
 )
+from ..logging_config import get_logger
 
 class BaseProvider(ABC):
     """所有提供商适配器必须实现的抽象基类"""
@@ -23,6 +24,7 @@ class BaseProvider(ABC):
         """初始化provider"""
         self.config = config
         self.retry_config = config.retry_config or RetryConfig()
+        self.logger = get_logger(self.__class__.__name__)
     
     @abstractmethod
     def convert_request(self, request: UnifiedRequest) -> Dict[str, Any]:
@@ -34,13 +36,14 @@ class BaseProvider(ABC):
         """将提供商特定的响应转换为统一响应"""
         pass
     
-    def handle_error_response(self, response: httpx.Response, provider_name: str) -> None:
+    def handle_error_response(self, response: httpx.Response, provider_name: str, request_id: Optional[str] = None) -> None:
         """
         统一处理错误响应，根据状态码抛出相应的异常
         
         Args:
             response: HTTP响应对象
             provider_name: 提供商名称
+            request_id: 请求ID (可选)
             
         Raises:
             相应的异常类型
@@ -53,6 +56,19 @@ class BaseProvider(ABC):
             error_msg = response.text or f"HTTP {response.status_code}"
         
         status_code = response.status_code
+        
+        # Log error
+        log_extra = {
+            "provider": provider_name,
+            "status_code": status_code,
+        }
+        if request_id:
+            log_extra["request_id"] = request_id
+        
+        self.logger.error(
+            f"API error: {error_msg}",
+            extra=log_extra
+        )
         
         # 根据状态码抛出不同的异常
         if status_code == 400:
@@ -122,17 +138,29 @@ class BaseProvider(ABC):
                 return error_data["detail"]
         return str(error_data)
     
-    def handle_request_error(self, error: Exception, provider_name: str) -> None:
+    def handle_request_error(self, error: Exception, provider_name: str, request_id: Optional[str] = None) -> None:
         """
         处理请求异常（如网络错误、超时等）
         
         Args:
             error: 捕获的异常
             provider_name: 提供商名称
+            request_id: 请求ID (可选)
             
         Raises:
             相应的异常类型
         """
+        # Log error
+        log_extra = {"provider": provider_name}
+        if request_id:
+            log_extra["request_id"] = request_id
+        
+        self.logger.error(
+            f"Request error: {str(error)}",
+            extra=log_extra,
+            exc_info=True
+        )
+        
         if isinstance(error, httpx.TimeoutException):
             raise TimeoutError(
                 f"{provider_name} Request Timeout: {str(error)}",
