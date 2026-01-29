@@ -1,6 +1,9 @@
 from typing import List, Dict, Optional, Union, Iterator, AsyncIterator
 import httpx
-from .types import ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk
+from .types import (
+    ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk,
+    EmbeddingRequest, EmbeddingResponse
+)
 
 from .exceptions import LLMRouterError
 from .factory import ProviderFactory
@@ -43,6 +46,49 @@ class Chat:
     def __init__(self, client: "Client"):
         self.completions = Completions(client)
 
+
+class Embeddings:
+    """Embeddings API 包装类"""
+    
+    def __init__(self, client: "Client"):
+        self._client = client
+    
+    def create(
+        self,
+        input: Union[str, List[str]],
+        model: Optional[str] = None,
+        encoding_format: Optional[str] = None,
+        dimensions: Optional[int] = None,
+    ) -> EmbeddingResponse:
+        """
+        创建文本嵌入
+        
+        Args:
+            input: 要嵌入的文本，可以是单个字符串或字符串列表
+            model: 使用的模型，如果不指定则使用 provider 默认模型
+            encoding_format: 编码格式 ("float" 或 "base64")，默认为 "float"
+            dimensions: 输出向量维度（仅部分模型支持）
+            
+        Returns:
+            EmbeddingResponse: 包含嵌入向量的响应
+            
+        Raises:
+            NotImplementedError: 如果当前 provider 不支持 embeddings
+        """
+        # 统一转换为列表
+        if isinstance(input, str):
+            input = [input]
+        
+        request = EmbeddingRequest(
+            input=input,
+            model=model,
+            encoding_format=encoding_format,
+            dimensions=dimensions
+        )
+        
+        return self._client._provider.create_embeddings(self._client._http_client, request)
+
+
 class Client:
     """同步客户端"""
     def __init__(self, config: ProviderConfig):
@@ -50,6 +96,7 @@ class Client:
         self._http_client = httpx.Client(timeout=config.timeout)
         self._provider = self._get_provider(config)
         self.chat = Chat(self)
+        self.embeddings = Embeddings(self)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
@@ -101,6 +148,49 @@ class AsyncChat:
     def __init__(self, client: "AsyncClient"):
         self.completions = AsyncCompletions(client)
 
+
+class AsyncEmbeddings:
+    """异步 Embeddings API 包装类"""
+    
+    def __init__(self, client: "AsyncClient"):
+        self._client = client
+    
+    async def create(
+        self,
+        input: Union[str, List[str]],
+        model: Optional[str] = None,
+        encoding_format: Optional[str] = None,
+        dimensions: Optional[int] = None,
+    ) -> EmbeddingResponse:
+        """
+        创建文本嵌入 (异步)
+        
+        Args:
+            input: 要嵌入的文本，可以是单个字符串或字符串列表
+            model: 使用的模型，如果不指定则使用 provider 默认模型
+            encoding_format: 编码格式 ("float" 或 "base64")，默认为 "float"
+            dimensions: 输出向量维度（仅部分模型支持）
+            
+        Returns:
+            EmbeddingResponse: 包含嵌入向量的响应
+            
+        Raises:
+            NotImplementedError: 如果当前 provider 不支持 embeddings
+        """
+        # 统一转换为列表
+        if isinstance(input, str):
+            input = [input]
+        
+        request = EmbeddingRequest(
+            input=input,
+            model=model,
+            encoding_format=encoding_format,
+            dimensions=dimensions
+        )
+        
+        return await self._client._provider.create_embeddings_async(self._client._http_client, request)
+
+
 class AsyncClient:
     """异步客户端"""
     def __init__(self, config: ProviderConfig):
@@ -108,6 +198,7 @@ class AsyncClient:
         self._http_client = httpx.AsyncClient(timeout=config.timeout)
         self._provider = self._get_provider(config)
         self.chat = AsyncChat(self)
+        self.embeddings = AsyncEmbeddings(self)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)

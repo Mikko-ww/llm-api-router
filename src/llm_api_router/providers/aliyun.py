@@ -1,7 +1,11 @@
 from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
+    ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse,
+    Embedding, EmbeddingUsage
+)
 from ..exceptions import StreamError
 from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
@@ -165,6 +169,83 @@ class AliyunProvider(BaseProvider):
                             yield self._convert_chunk(data)
                         except json.JSONDecodeError as e:
                             raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Aliyun")
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Aliyun")
+
+    # --- Embeddings Implementation ---
+    
+    def supports_embeddings(self) -> bool:
+        """Aliyun (DashScope) 支持 embeddings API"""
+        return True
+    
+    def _convert_embedding_request(self, request: EmbeddingRequest) -> Dict[str, Any]:
+        """将嵌入请求转换为 DashScope 特定的请求格式"""
+        # DashScope embedding format
+        # {
+        #   "model": "text-embedding-v2",
+        #   "input": { "texts": ["text1", "text2"] },
+        #   "parameters": { "dimension": 512 }  # optional
+        # }
+        data: Dict[str, Any] = {
+            "model": request.model or "text-embedding-v2",
+            "input": {
+                "texts": request.input
+            }
+        }
+        if request.dimensions is not None:
+            data["parameters"] = {"dimension": request.dimensions}
+        return data
+    
+    def _convert_embedding_response(self, provider_response: Dict[str, Any]) -> EmbeddingResponse:
+        """将 DashScope 嵌入响应转换为统一格式"""
+        output = provider_response.get("output", {})
+        embeddings_data = output.get("embeddings", [])
+        
+        embeddings = []
+        for item in embeddings_data:
+            embeddings.append(Embedding(
+                index=item.get("text_index", 0),
+                embedding=item.get("embedding", []),
+                object="embedding"
+            ))
+        
+        usage_data = provider_response.get("usage", {})
+        usage = EmbeddingUsage(
+            prompt_tokens=usage_data.get("total_tokens", 0),
+            total_tokens=usage_data.get("total_tokens", 0)
+        )
+        
+        return EmbeddingResponse(
+            data=embeddings,
+            model=provider_response.get("model", ""),
+            usage=usage,
+            object="list"
+        )
+    
+    @with_retry()
+    def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（同步）"""
+        payload = self._convert_embedding_request(request)
+        # DashScope embedding endpoint is different
+        url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
+        try:
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Aliyun")
+            return self._convert_embedding_response(response.json())
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Aliyun")
+    
+    @with_retry_async()
+    async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（异步）"""
+        payload = self._convert_embedding_request(request)
+        url = "https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding"
+        try:
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Aliyun")
+            return self._convert_embedding_response(response.json())
         except httpx.RequestError as e:
             self.handle_request_error(e, "Aliyun")
 

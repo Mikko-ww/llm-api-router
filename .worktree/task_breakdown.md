@@ -23,17 +23,17 @@
 **目标**: 创建完整的单元测试和集成测试框架
 
 **子任务**:
-- [ ] 创建tests目录结构
+- [x] 创建tests目录结构
   - tests/unit/
   - tests/integration/
   - tests/fixtures/
-- [ ] 配置pytest和相关插件（pytest-asyncio, pytest-mock, pytest-cov）
-- [ ] 创建测试fixtures和mock数据
-- [ ] 为Client和AsyncClient编写单元测试
-- [ ] 为每个provider编写单元测试（至少覆盖主要功能）
-- [ ] 编写integration测试（使用mock或真实API）
-- [ ] 配置代码覆盖率报告（目标：80%+）
-- [ ] 更新CI配置运行测试
+- [x] 配置pytest和相关插件（pytest-asyncio, pytest-mock, pytest-cov）
+- [x] 创建测试fixtures和mock数据
+- [x] 为Client和AsyncClient编写单元测试
+- [x] 为每个provider编写单元测试（至少覆盖主要功能）
+- [x] 编写integration测试（使用mock或真实API）
+- [x] 配置代码覆盖率报告（目标：80%+）
+- [x] 更新CI配置运行测试
 
 **验收标准**:
 - 所有核心功能有单元测试覆盖
@@ -69,15 +69,15 @@
 **目标**: 实现健壮的错误处理和重试机制
 
 **子任务**:
-- [ ] 设计RetryConfig数据类
-- [ ] 实现exponential backoff重试逻辑
-- [ ] 为不同HTTP状态码创建专门的异常类
-- [ ] 在BaseProvider中添加重试装饰器
-- [ ] 为每个provider适配错误处理
-- [ ] 添加超时配置选项
-- [ ] 实现断路器模式（可选）
-- [ ] 编写错误处理相关测试
-- [ ] 更新文档说明错误处理机制
+- [x] 设计RetryConfig数据类
+- [x] 实现exponential backoff重试逻辑
+- [x] 为不同HTTP状态码创建专门的异常类
+- [x] 在BaseProvider中添加重试装饰器
+- [x] 为每个provider适配错误处理
+- [x] 添加超时配置选项
+- [x] 实现断路器模式（可选）
+- [x] 编写错误处理相关测试
+- [x] 更新文档说明错误处理机制
 
 **验收标准**:
 - 网络错误自动重试
@@ -157,26 +157,26 @@
 
 ---
 
-### 任务 2.3: Embeddings API实现 [P1, L]
+### 任务 2.3: Embeddings API实现 [P1, L] ✅
 **目标**: 添加文本嵌入功能支持
 
 **子任务**:
-- [ ] 设计Embeddings API数据结构
+- [x] 设计Embeddings API数据结构
   - EmbeddingsRequest
   - EmbeddingsResponse
   - Embedding
-- [ ] 在Client和AsyncClient中添加embeddings属性
-- [ ] 在BaseProvider中添加embeddings相关抽象方法
-- [ ] 为OpenAI实现embeddings支持
-- [ ] 为其他支持的provider实现embeddings（Gemini, Cohere等）
-- [ ] 实现批量处理优化
-- [ ] 编写测试
-- [ ] 添加使用示例和文档
+- [x] 在Client和AsyncClient中添加embeddings属性
+- [x] 在BaseProvider中添加embeddings相关抽象方法
+- [x] 为OpenAI实现embeddings支持
+- [x] 为其他支持的provider实现embeddings（Gemini, Zhipu, Aliyun）
+- [x] 实现批量处理优化
+- [x] 编写测试
+- [x] 添加使用示例和文档
 
 **验收标准**:
-- 至少支持3个provider的embeddings
-- 支持单个和批量文本
-- API设计符合OpenAI风格
+- 至少支持3个provider的embeddings ✅ (OpenAI, Gemini, Zhipu, Aliyun)
+- 支持单个和批量文本 ✅
+- API设计符合OpenAI风格 ✅
 
 **依赖**: 任务1.1
 

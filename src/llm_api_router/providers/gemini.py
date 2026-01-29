@@ -1,7 +1,11 @@
 from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
+    ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse,
+    Embedding, EmbeddingUsage
+)
 from ..exceptions import StreamError
 from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
@@ -237,5 +241,106 @@ class GeminiProvider(BaseProvider):
                             yield self._convert_chunk(data)
                         except json.JSONDecodeError as e:
                             raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Gemini")
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Gemini")
+
+    # --- Embeddings Implementation ---
+    
+    def supports_embeddings(self) -> bool:
+        """Gemini 支持 embeddings API"""
+        return True
+    
+    def _convert_embedding_request(self, request: EmbeddingRequest, text: str) -> Dict[str, Any]:
+        """将单个文本转换为 Gemini embedContent 请求格式"""
+        # Gemini batchEmbedContents format:
+        # { "requests": [{ "model": "models/embedding-001", "content": { "parts": [{"text": "..."}] } }] }
+        # For single: embedContent
+        data: Dict[str, Any] = {
+            "content": {
+                "parts": [{"text": text}]
+            }
+        }
+        if request.dimensions is not None:
+            data["outputDimensionality"] = request.dimensions
+        return data
+    
+    def _convert_batch_embedding_request(self, request: EmbeddingRequest) -> Dict[str, Any]:
+        """将批量请求转换为 Gemini batchEmbedContents 格式"""
+        model = request.model or "embedding-001"
+        if not model.startswith("models/"):
+            model = f"models/{model}"
+            
+        requests = []
+        for text in request.input:
+            req: Dict[str, Any] = {
+                "model": model,
+                "content": {
+                    "parts": [{"text": text}]
+                }
+            }
+            if request.dimensions is not None:
+                req["outputDimensionality"] = request.dimensions
+            requests.append(req)
+        
+        return {"requests": requests}
+    
+    def _convert_embedding_response(self, provider_response: Dict[str, Any]) -> EmbeddingResponse:
+        """将 Gemini batchEmbedContents 响应转换为统一格式"""
+        embeddings_data = provider_response.get("embeddings", [])
+        
+        embeddings = []
+        for idx, item in enumerate(embeddings_data):
+            embeddings.append(Embedding(
+                index=idx,
+                embedding=item.get("values", []),
+                object="embedding"
+            ))
+        
+        # Gemini doesn't return token usage for embeddings
+        usage = EmbeddingUsage(
+            prompt_tokens=0,
+            total_tokens=0
+        )
+        
+        return EmbeddingResponse(
+            data=embeddings,
+            model="",  # Gemini doesn't echo model in response
+            usage=usage,
+            object="list"
+        )
+    
+    def _get_embedding_url(self, model: str) -> str:
+        """获取 embedding API URL"""
+        if not model.startswith("models/"):
+            model = f"models/{model}"
+        return f"{self.base_url}/{model}:batchEmbedContents"
+    
+    @with_retry()
+    def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（同步）"""
+        model = request.model or "embedding-001"
+        payload = self._convert_batch_embedding_request(request)
+        url = self._get_embedding_url(model)
+        
+        try:
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Gemini")
+            return self._convert_embedding_response(response.json())
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Gemini")
+    
+    @with_retry_async()
+    async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（异步）"""
+        model = request.model or "embedding-001"
+        payload = self._convert_batch_embedding_request(request)
+        url = self._get_embedding_url(model)
+        
+        try:
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Gemini")
+            return self._convert_embedding_response(response.json())
         except httpx.RequestError as e:
             self.handle_request_error(e, "Gemini")

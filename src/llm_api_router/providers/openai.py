@@ -1,7 +1,11 @@
 from typing import Dict, Any, Iterator, AsyncIterator, List
 import httpx
 import json
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
+    ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse, 
+    Embedding, EmbeddingUsage
+)
 from ..exceptions import StreamError
 from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
@@ -147,5 +151,72 @@ class OpenAIProvider(BaseProvider):
                             yield self._convert_chunk(data)
                         except json.JSONDecodeError as e:
                             raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenAI")
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "OpenAI")
+
+    # --- Embeddings Implementation ---
+    
+    def supports_embeddings(self) -> bool:
+        """OpenAI 支持 embeddings API"""
+        return True
+    
+    def _convert_embedding_request(self, request: EmbeddingRequest) -> Dict[str, Any]:
+        """将嵌入请求转换为 OpenAI 特定的请求格式"""
+        data: Dict[str, Any] = {
+            "model": request.model or self.config.default_model or "text-embedding-3-small",
+            "input": request.input
+        }
+        if request.encoding_format is not None:
+            data["encoding_format"] = request.encoding_format
+        if request.dimensions is not None:
+            data["dimensions"] = request.dimensions
+        return data
+    
+    def _convert_embedding_response(self, provider_response: Dict[str, Any]) -> EmbeddingResponse:
+        """将 OpenAI 嵌入响应转换为统一格式"""
+        embeddings = []
+        for item in provider_response.get("data", []):
+            embeddings.append(Embedding(
+                index=item.get("index", 0),
+                embedding=item.get("embedding", []),
+                object=item.get("object", "embedding")
+            ))
+        
+        usage_data = provider_response.get("usage", {})
+        usage = EmbeddingUsage(
+            prompt_tokens=usage_data.get("prompt_tokens", 0),
+            total_tokens=usage_data.get("total_tokens", 0)
+        )
+        
+        return EmbeddingResponse(
+            data=embeddings,
+            model=provider_response.get("model", ""),
+            usage=usage,
+            object=provider_response.get("object", "list")
+        )
+    
+    @with_retry()
+    def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（同步）"""
+        payload = self._convert_embedding_request(request)
+        url = f"{self.base_url}/embeddings"
+        try:
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "OpenAI")
+            return self._convert_embedding_response(response.json())
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "OpenAI")
+    
+    @with_retry_async()
+    async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（异步）"""
+        payload = self._convert_embedding_request(request)
+        url = f"{self.base_url}/embeddings"
+        try:
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "OpenAI")
+            return self._convert_embedding_response(response.json())
         except httpx.RequestError as e:
             self.handle_request_error(e, "OpenAI")

@@ -14,6 +14,7 @@
 - **Streaming Support**: Unified Server-Sent Events (SSE) streaming response handling, automatically managing streaming differences across vendors.
 - **Async Support**: Native support for `asyncio` and `await` calls.
 - **Type Safety**: Comprehensive Type Hints, strictly checked via MyPy.
+- **Embeddings API**: Unified text embeddings interface supporting OpenAI, Gemini, Zhipu, and Aliyun providers.
 
 ## Architecture Design
 
@@ -146,6 +147,63 @@ async def main():
 
 asyncio.run(main())
 ```
+
+## Embeddings API
+
+The library provides a unified interface for creating text embeddings, supporting multiple providers:
+
+### Basic Usage
+
+```python
+from llm_api_router import Client, ProviderConfig
+
+config = ProviderConfig(
+    provider_type="openai",
+    api_key="your-api-key",
+    default_model="text-embedding-3-small"
+)
+
+with Client(config) as client:
+    # Single text embedding
+    response = client.embeddings.create(input="Hello, world!")
+    print(f"Embedding dimension: {len(response.data[0].embedding)}")
+    
+    # Batch embeddings
+    response = client.embeddings.create(
+        input=["Text 1", "Text 2", "Text 3"]
+    )
+    print(f"Created {len(response.data)} embeddings")
+```
+
+### Custom Dimensions (OpenAI text-embedding-3-* models)
+
+```python
+response = client.embeddings.create(
+    input="Test text",
+    model="text-embedding-3-small",
+    dimensions=256  # Reduce dimensions to save storage
+)
+```
+
+### Async Embeddings
+
+```python
+async with AsyncClient(config) as client:
+    response = await client.embeddings.create(
+        input=["Async text 1", "Async text 2"]
+    )
+```
+
+### Supported Embedding Providers
+
+| Provider | Default Model | Notes |
+|---|---|---|
+| **OpenAI** | text-embedding-3-small | Supports custom dimensions |
+| **Gemini** | embedding-001 | Uses batchEmbedContents API |
+| **Zhipu** | embedding-3 | OpenAI-compatible format |
+| **Aliyun** | text-embedding-v2 | DashScope format |
+
+For complete examples, see [examples/embeddings_example.py](examples/embeddings_example.py).
 
 ## Error Handling and Retry
 

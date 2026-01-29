@@ -78,3 +78,35 @@ class UnifiedChunk:
     created: int
     model: str
     choices: List[ChunkChoice]
+
+
+# --- Embeddings Types ---
+
+@dataclass
+class EmbeddingRequest:
+    """嵌入请求对象"""
+    input: List[str]  # 要嵌入的文本列表
+    model: Optional[str] = None  # 模型名称，可选（使用默认模型）
+    encoding_format: Optional[str] = None  # 编码格式: "float" 或 "base64"
+    dimensions: Optional[int] = None  # 输出向量维度（仅部分模型支持）
+
+@dataclass
+class Embedding:
+    """单个嵌入结果"""
+    index: int  # 在输入列表中的索引
+    embedding: List[float]  # 嵌入向量
+    object: str = "embedding"
+
+@dataclass
+class EmbeddingUsage:
+    """嵌入 API 的 token 使用情况"""
+    prompt_tokens: int
+    total_tokens: int
+
+@dataclass
+class EmbeddingResponse:
+    """嵌入响应对象"""
+    data: List[Embedding]  # 嵌入结果列表
+    model: str  # 使用的模型
+    usage: EmbeddingUsage  # token 使用情况
+    object: str = "list"

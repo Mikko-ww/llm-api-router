@@ -11,6 +11,11 @@ from .types import (
     Choice,
     ChunkChoice,
     Usage,
+    # Embeddings types
+    EmbeddingRequest,
+    EmbeddingResponse,
+    Embedding,
+    EmbeddingUsage,
 )
 from .exceptions import (
     LLMRouterError,
@@ -42,6 +47,11 @@ __all__ = [
     "Choice",
     "ChunkChoice",
     "Usage",
+    # Embeddings types
+    "EmbeddingRequest",
+    "EmbeddingResponse",
+    "Embedding",
+    "EmbeddingUsage",
     # Exceptions
     "LLMRouterError",
     "AuthenticationError",

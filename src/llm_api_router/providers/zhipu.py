@@ -5,7 +5,11 @@ import time
 import hmac
 import hashlib
 import base64
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, 
+    ProviderConfig, ChunkChoice, EmbeddingRequest, EmbeddingResponse,
+    Embedding, EmbeddingUsage
+)
 from ..exceptions import AuthenticationError, StreamError
 from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
@@ -198,5 +202,71 @@ class ZhipuProvider(BaseProvider):
                             yield self._convert_chunk(data)
                         except json.JSONDecodeError as e:
                             raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Zhipu")
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Zhipu")
+
+    # --- Embeddings Implementation ---
+    
+    def supports_embeddings(self) -> bool:
+        """Zhipu 支持 embeddings API"""
+        return True
+    
+    def _convert_embedding_request(self, request: EmbeddingRequest) -> Dict[str, Any]:
+        """将嵌入请求转换为 Zhipu 特定的请求格式"""
+        # Zhipu uses OpenAI-compatible format for embeddings
+        data: Dict[str, Any] = {
+            "model": request.model or self.config.default_model or "embedding-3",
+            "input": request.input
+        }
+        if request.dimensions is not None:
+            data["dimensions"] = request.dimensions
+        return data
+    
+    def _convert_embedding_response(self, provider_response: Dict[str, Any]) -> EmbeddingResponse:
+        """将 Zhipu 嵌入响应转换为统一格式"""
+        embeddings = []
+        for item in provider_response.get("data", []):
+            embeddings.append(Embedding(
+                index=item.get("index", 0),
+                embedding=item.get("embedding", []),
+                object=item.get("object", "embedding")
+            ))
+        
+        usage_data = provider_response.get("usage", {})
+        usage = EmbeddingUsage(
+            prompt_tokens=usage_data.get("prompt_tokens", 0),
+            total_tokens=usage_data.get("total_tokens", 0)
+        )
+        
+        return EmbeddingResponse(
+            data=embeddings,
+            model=provider_response.get("model", ""),
+            usage=usage,
+            object=provider_response.get("object", "list")
+        )
+    
+    @with_retry()
+    def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（同步）"""
+        payload = self._convert_embedding_request(request)
+        url = f"{self.base_url}/embeddings"
+        try:
+            response = client.post(url, headers=self._get_headers(), json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Zhipu")
+            return self._convert_embedding_response(response.json())
+        except httpx.RequestError as e:
+            self.handle_request_error(e, "Zhipu")
+    
+    @with_retry_async()
+    async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        """创建文本嵌入（异步）"""
+        payload = self._convert_embedding_request(request)
+        url = f"{self.base_url}/embeddings"
+        try:
+            response = await client.post(url, headers=self._get_headers(), json=payload, timeout=self.config.timeout)
+            if response.status_code != 200:
+                self.handle_error_response(response, "Zhipu")
+            return self._convert_embedding_response(response.json())
         except httpx.RequestError as e:
             self.handle_request_error(e, "Zhipu")

@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Iterator, AsyncIterator, Optional
 import httpx
-from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, ProviderConfig, RetryConfig
+from ..types import (
+    UnifiedRequest, UnifiedResponse, UnifiedChunk, ProviderConfig, RetryConfig,
+    EmbeddingRequest, EmbeddingResponse
+)
 from ..exceptions import (
     AuthenticationError,
     PermissionError,
@@ -168,3 +171,41 @@ class BaseProvider(ABC):
     def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         """执行异步流式请求"""
         pass
+
+    # --- Embeddings Methods ---
+    
+    def supports_embeddings(self) -> bool:
+        """检查此 provider 是否支持 embeddings API"""
+        return False
+    
+    def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        """
+        创建文本嵌入（同步）
+        
+        Args:
+            client: HTTP客户端
+            request: 嵌入请求
+            
+        Returns:
+            嵌入响应
+            
+        Raises:
+            NotImplementedError: 如果 provider 不支持 embeddings
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support embeddings")
+    
+    async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        """
+        创建文本嵌入（异步）
+        
+        Args:
+            client: 异步HTTP客户端
+            request: 嵌入请求
+            
+        Returns:
+            嵌入响应
+            
+        Raises:
+            NotImplementedError: 如果 provider 不支持 embeddings
+        """
+        raise NotImplementedError(f"{self.__class__.__name__} does not support embeddings")
