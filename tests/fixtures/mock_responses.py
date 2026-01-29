@@ -141,3 +141,76 @@ SAMPLE_MESSAGES_CONVERSATION = [
     {"role": "assistant", "content": "The capital of France is Paris."},
     {"role": "user", "content": "What is its population?"}
 ]
+
+
+def get_openai_function_call_response() -> Dict[str, Any]:
+    """Mock OpenAI function calling response."""
+    return {
+        "id": "chatcmpl-function-test",
+        "object": "chat.completion",
+        "created": 1720513699,
+        "model": "gpt-4",
+        "choices": [
+            {
+                "index": 0,
+                "message": {
+                    "role": "assistant",
+                    "content": None,
+                    "tool_calls": [
+                        {
+                            "id": "call_abc123",
+                            "type": "function",
+                            "function": {
+                                "name": "get_weather",
+                                "arguments": '{"location": "San Francisco, CA", "unit": "fahrenheit"}'
+                            }
+                        }
+                    ]
+                },
+                "finish_reason": "tool_calls"
+            }
+        ],
+        "usage": {
+            "prompt_tokens": 82,
+            "completion_tokens": 17,
+            "total_tokens": 99
+        }
+    }
+
+
+def get_anthropic_function_call_response() -> Dict[str, Any]:
+    """Mock Anthropic tool use response."""
+    return {
+        "id": "msg_tool_test",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+            {
+                "type": "tool_use",
+                "id": "toolu_01A09q90qw90lq917835lq9",
+                "name": "get_weather",
+                "input": {
+                    "location": "San Francisco, CA",
+                    "unit": "fahrenheit"
+                }
+            }
+        ],
+        "model": "claude-3-5-sonnet-20241022",
+        "stop_reason": "tool_use",
+        "usage": {
+            "input_tokens": 82,
+            "output_tokens": 17
+        }
+    }
+
+
+def get_openai_function_call_stream_chunks() -> list[str]:
+    """Mock OpenAI streaming function call response chunks."""
+    return [
+        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_abc123","type":"function","function":{"name":"get_weather","arguments":""}}]},"finish_reason":null}]}\n\n',
+        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"location"}}]},"finish_reason":null}]}\n\n',
+        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\":  \\"San"}}]},"finish_reason":null}]}\n\n',
+        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":" Francisco, CA\\"}"}}]},"finish_reason":null}]}\n\n',
+        'data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1234567890,"model":"gpt-4","choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}\n\n',
+        'data: [DONE]\n\n'
+    ]
