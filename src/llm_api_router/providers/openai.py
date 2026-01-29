@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator, List
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError, LLMRouterError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class OpenAIProvider(BaseProvider):
     """OpenAI 提供商适配器"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://api.openai.com/v1").rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {config.api_key}",
@@ -79,51 +80,37 @@ class OpenAIProvider(BaseProvider):
             choices=choices
         )
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            msg = error_data.get("error", {}).get("message", response.text)
-        except Exception:
-            msg = response.text
-
-        if response.status_code == 401:
-            raise AuthenticationError(f"OpenAI Auth Failed: {msg}", provider="openai", status_code=401)
-        elif response.status_code == 429:
-            raise RateLimitError(f"OpenAI Rate Limit: {msg}", provider="openai", status_code=429)
-        elif response.status_code >= 500:
-            raise ProviderError(f"OpenAI Server Error: {msg}", provider="openai", status_code=response.status_code)
-        else:
-            raise ProviderError(f"OpenAI Error {response.status_code}: {msg}", provider="openai", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "OpenAI")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="openai")
+            self.handle_request_error(e, "OpenAI")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "OpenAI")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="openai")
+            self.handle_request_error(e, "OpenAI")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "OpenAI")
                 
                 for line in response.iter_lines():
                     if not line:
@@ -135,18 +122,18 @@ class OpenAIProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenAI")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="openai")
+            self.handle_request_error(e, "OpenAI")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "OpenAI")
                 
                 async for line in response.aiter_lines():
                     if not line:
@@ -158,7 +145,7 @@ class OpenAIProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenAI")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="openai")
+            self.handle_request_error(e, "OpenAI")

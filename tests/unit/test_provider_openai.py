@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch, MagicMock
 import httpx
 from llm_api_router.providers.openai import OpenAIProvider
 from llm_api_router.types import ProviderConfig, UnifiedRequest, Message, Choice
-from llm_api_router.exceptions import AuthenticationError, RateLimitError, ProviderError
+from llm_api_router.exceptions import AuthenticationError, RateLimitError, ProviderError, RetryExhaustedError
 from tests.fixtures.mock_responses import (
     get_openai_chat_response,
     SAMPLE_MESSAGES
@@ -229,7 +229,8 @@ class TestOpenAIProvider:
             
             mock_client = httpx.Client()
             
-            with pytest.raises(RateLimitError):
+            # Should raise RetryExhaustedError after retrying
+            with pytest.raises(RetryExhaustedError):
                 openai_provider.send_request(mock_client, request)
 
     def test_send_request_provider_error(self, openai_provider):
@@ -244,5 +245,6 @@ class TestOpenAIProvider:
             
             mock_client = httpx.Client()
             
-            with pytest.raises(ProviderError):
+            # Should raise RetryExhaustedError after retrying
+            with pytest.raises(RetryExhaustedError):
                 openai_provider.send_request(mock_client, request)

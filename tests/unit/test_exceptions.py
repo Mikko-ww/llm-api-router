@@ -3,9 +3,15 @@ import pytest
 from llm_api_router.exceptions import (
     LLMRouterError,
     AuthenticationError,
+    PermissionError,
+    NotFoundError,
     RateLimitError,
+    BadRequestError,
     ProviderError,
-    StreamError
+    TimeoutError,
+    NetworkError,
+    StreamError,
+    RetryExhaustedError,
 )
 
 
@@ -157,6 +163,91 @@ class TestExceptionRaising:
 
     def test_catch_multiple_error_types(self):
         """Test catching multiple error types."""
-        for error_class in [AuthenticationError, RateLimitError, ProviderError, StreamError]:
+        error_classes = [
+            AuthenticationError,
+            PermissionError,
+            NotFoundError,
+            RateLimitError,
+            BadRequestError,
+            ProviderError,
+            TimeoutError,
+            NetworkError,
+            StreamError,
+            RetryExhaustedError,
+        ]
+        for error_class in error_classes:
             with pytest.raises(LLMRouterError):
                 raise error_class("Error message")
+
+
+class TestPermissionError:
+    """Test PermissionError exception."""
+
+    def test_permission_error(self):
+        """Test creating a PermissionError."""
+        error = PermissionError("Access denied", provider="openai", status_code=403)
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "Access denied"
+        assert error.provider == "openai"
+        assert error.status_code == 403
+
+
+class TestNotFoundError:
+    """Test NotFoundError exception."""
+
+    def test_not_found_error(self):
+        """Test creating a NotFoundError."""
+        error = NotFoundError("Model not found", status_code=404)
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "Model not found"
+        assert error.status_code == 404
+
+
+class TestBadRequestError:
+    """Test BadRequestError exception."""
+
+    def test_bad_request_error(self):
+        """Test creating a BadRequestError."""
+        error = BadRequestError("Invalid request", status_code=400)
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "Invalid request"
+        assert error.status_code == 400
+
+
+class TestTimeoutError:
+    """Test TimeoutError exception."""
+
+    def test_timeout_error(self):
+        """Test creating a TimeoutError."""
+        error = TimeoutError("Request timeout")
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "Request timeout"
+
+
+class TestNetworkError:
+    """Test NetworkError exception."""
+
+    def test_network_error(self):
+        """Test creating a NetworkError."""
+        error = NetworkError("Connection failed")
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "Connection failed"
+
+
+class TestRetryExhaustedError:
+    """Test RetryExhaustedError exception."""
+
+    def test_retry_exhausted_error(self):
+        """Test creating a RetryExhaustedError."""
+        details = {"max_retries": 3, "original_error": "Rate limit"}
+        error = RetryExhaustedError("All retries failed", details=details)
+        
+        assert isinstance(error, LLMRouterError)
+        assert error.message == "All retries failed"
+        assert error.details["max_retries"] == 3
+

@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class AliyunProvider(BaseProvider):
     """Alibaba Cloud (DashScope/Qwen) Provider Adapter"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation").rstrip("/")
         self.headers = {
             "Authorization": f"Bearer {config.api_key}",
@@ -100,52 +101,38 @@ class AliyunProvider(BaseProvider):
             choices=choices
         )
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            code = error_data.get("code", "")
-            msg = error_data.get("message", response.text)
-        except Exception:
-            code = ""
-            msg = response.text
-
-        if response.status_code == 401 or code == "InvalidApiKey":
-            raise AuthenticationError(f"Aliyun Auth Failed: {msg}", provider="aliyun", status_code=401)
-        elif response.status_code == 429 or code == "Throttling.RateQuota":
-            raise RateLimitError(f"Aliyun Rate Limit: {msg}", provider="aliyun", status_code=429)
-        else:
-            raise ProviderError(f"Aliyun Error {response.status_code} ({code}): {msg}", provider="aliyun", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         # DashScope is strictly POST
         url = self.base_url # base_url is full path
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Aliyun")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="aliyun")
+            self.handle_request_error(e, "Aliyun")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = self.base_url
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Aliyun")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="aliyun")
+            self.handle_request_error(e, "Aliyun")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = self.base_url
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Aliyun")
                 
                 for line in response.iter_lines():
                     if not line: continue
@@ -156,18 +143,18 @@ class AliyunProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Aliyun")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="aliyun")
+            self.handle_request_error(e, "Aliyun")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = self.base_url
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Aliyun")
                 
                 async for line in response.aiter_lines():
                     if not line: continue
@@ -176,7 +163,8 @@ class AliyunProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Aliyun")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="aliyun")
+            self.handle_request_error(e, "Aliyun")
+

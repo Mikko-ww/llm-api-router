@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class AnthropicProvider(BaseProvider):
     """Anthropic Provider Adapter"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://api.anthropic.com/v1").rstrip("/")
         self.headers = {
             "x-api-key": config.api_key,
@@ -117,56 +118,37 @@ class AnthropicProvider(BaseProvider):
         # We ignore other events like message_start, ping for simple text streaming for now
         return None
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            error = error_data.get("error", {})
-            msg = error.get("message", response.text)
-            err_type = error.get("type", "")
-        except Exception:
-            msg = response.text
-            err_type = ""
-
-        if response.status_code == 401:
-            raise AuthenticationError(f"Anthropic Auth Failed: {msg}", provider="anthropic", status_code=401)
-        elif response.status_code == 403:
-             raise AuthenticationError(f"Anthropic Forbidden: {msg}", provider="anthropic", status_code=403)
-        elif response.status_code == 429:
-            raise RateLimitError(f"Anthropic Rate Limit: {msg}", provider="anthropic", status_code=429)
-        elif response.status_code >= 500:
-             raise ProviderError(f"Anthropic Server Error: {msg}", provider="anthropic", status_code=response.status_code)
-        else:
-            raise ProviderError(f"Anthropic Error {response.status_code} ({err_type}): {msg}", provider="anthropic", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/messages"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Anthropic")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="anthropic")
+            self.handle_request_error(e, "Anthropic")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/messages"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Anthropic")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="anthropic")
+            self.handle_request_error(e, "Anthropic")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/messages"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Anthropic")
                 
                 # Custom SSE parsing for Anthropic
                 current_event_type = None
@@ -185,18 +167,18 @@ class AnthropicProvider(BaseProvider):
                             chunk = self._convert_chunk_event(current_event_type, data)
                             if chunk:
                                 yield chunk
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Anthropic")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="anthropic")
+            self.handle_request_error(e, "Anthropic")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/messages"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Anthropic")
                 
                 current_event_type = None
 
@@ -214,7 +196,7 @@ class AnthropicProvider(BaseProvider):
                             chunk = self._convert_chunk_event(current_event_type, data)
                             if chunk:
                                 yield chunk
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Anthropic")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="anthropic")
+            self.handle_request_error(e, "Anthropic")

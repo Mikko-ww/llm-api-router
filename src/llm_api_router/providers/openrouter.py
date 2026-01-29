@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator, List
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError, LLMRouterError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class OpenRouterProvider(BaseProvider):
     """OpenRouter 提供商适配器"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://openrouter.ai/api/v1").rstrip("/")
         # OpenRouter 推荐必须的头部
         default_headers = {
@@ -90,54 +91,37 @@ class OpenRouterProvider(BaseProvider):
             choices=choices
         )
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            # OpenRouter 错误格式通常包含 error 字段
-            msg = error_data.get("error", {}).get("message", response.text)
-        except Exception:
-            msg = response.text
-
-        if response.status_code == 401:
-            raise AuthenticationError(f"OpenRouter Auth Failed: {msg}", provider="openrouter", status_code=401)
-        elif response.status_code == 402:
-            raise AuthenticationError(f"OpenRouter Insufficient Credits: {msg}", provider="openrouter", status_code=402)
-        elif response.status_code == 429:
-            raise RateLimitError(f"OpenRouter Rate Limit: {msg}", provider="openrouter", status_code=429)
-        elif response.status_code >= 500:
-            raise ProviderError(f"OpenRouter Server Error: {msg}", provider="openrouter", status_code=response.status_code)
-        else:
-            raise ProviderError(f"OpenRouter Error {response.status_code}: {msg}", provider="openrouter", status_code=response.status_code)
-
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "OpenRouter")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="openrouter")
+            self.handle_request_error(e, "OpenRouter")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "OpenRouter")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="openrouter")
+            self.handle_request_error(e, "OpenRouter")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "OpenRouter")
                 
                 for line in response.iter_lines():
                     if not line:
@@ -152,18 +136,18 @@ class OpenRouterProvider(BaseProvider):
                                 continue
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenRouter")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="openrouter")
+            self.handle_request_error(e, "OpenRouter")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "OpenRouter")
                 
                 async for line in response.aiter_lines():
                     if not line:
@@ -177,7 +161,7 @@ class OpenRouterProvider(BaseProvider):
                                 continue
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="OpenRouter")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="openrouter")
+            self.handle_request_error(e, "OpenRouter")

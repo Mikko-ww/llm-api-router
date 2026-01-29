@@ -2,6 +2,7 @@
 import pytest
 from llm_api_router.types import (
     ProviderConfig,
+    RetryConfig,
     Message,
     UnifiedRequest,
     UnifiedResponse,
@@ -10,6 +11,42 @@ from llm_api_router.types import (
     UnifiedChunk,
     ChunkChoice
 )
+
+
+class TestRetryConfig:
+    """Test RetryConfig dataclass."""
+
+    def test_retry_config_defaults(self):
+        """Test RetryConfig default values."""
+        config = RetryConfig()
+        
+        assert config.max_retries == 3
+        assert config.initial_delay == 1.0
+        assert config.max_delay == 60.0
+        assert config.exponential_base == 2.0
+        assert config.retry_on_status_codes == (429, 500, 502, 503, 504)
+
+    def test_retry_config_custom_values(self):
+        """Test RetryConfig with custom values."""
+        config = RetryConfig(
+            max_retries=5,
+            initial_delay=2.0,
+            max_delay=120.0,
+            exponential_base=3.0,
+            retry_on_status_codes=(429, 503)
+        )
+        
+        assert config.max_retries == 5
+        assert config.initial_delay == 2.0
+        assert config.max_delay == 120.0
+        assert config.exponential_base == 3.0
+        assert config.retry_on_status_codes == (429, 503)
+
+    def test_retry_config_no_retries(self):
+        """Test RetryConfig with no retries."""
+        config = RetryConfig(max_retries=0)
+        
+        assert config.max_retries == 0
 
 
 class TestProviderConfig:
@@ -50,6 +87,30 @@ class TestProviderConfig:
         assert config.default_model is None
         assert config.extra_headers == {}
         assert config.api_version is None
+        assert config.timeout == 60.0
+        assert config.retry_config is None
+
+    def test_provider_config_with_timeout(self):
+        """Test ProviderConfig with custom timeout."""
+        config = ProviderConfig(
+            provider_type="openai",
+            api_key="test-key",
+            timeout=30.0
+        )
+        
+        assert config.timeout == 30.0
+
+    def test_provider_config_with_retry_config(self):
+        """Test ProviderConfig with RetryConfig."""
+        retry_config = RetryConfig(max_retries=5)
+        config = ProviderConfig(
+            provider_type="openai",
+            api_key="test-key",
+            retry_config=retry_config
+        )
+        
+        assert config.retry_config == retry_config
+        assert config.retry_config.max_retries == 5
 
 
 class TestMessage:

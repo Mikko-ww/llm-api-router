@@ -2,14 +2,15 @@ from typing import Dict, Any, Iterator, AsyncIterator, List, Optional
 import httpx
 import json
 from ..types import UnifiedRequest, UnifiedResponse, UnifiedChunk, Message, Choice, Usage, ProviderConfig, ChunkChoice
-from ..exceptions import AuthenticationError, RateLimitError, ProviderError
+from ..exceptions import StreamError
+from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class GeminiProvider(BaseProvider):
     """Google Gemini Provider Adapter"""
     
     def __init__(self, config: ProviderConfig):
-        self.config = config
+        super().__init__(config)
         self.base_url = (config.base_url or "https://generativelanguage.googleapis.com/v1beta").rstrip("/")
         self.api_key = config.api_key
         # Gemini uses a query parameter 'key' commonly, but we can try header 'x-goog-api-key' for cleanliness if supported.
@@ -138,25 +139,6 @@ class GeminiProvider(BaseProvider):
             )]
         )
 
-    def _handle_error(self, response: httpx.Response):
-        try:
-            error_data = response.json()
-            error = error_data.get("error", {})
-            msg = error.get("message", response.text)
-            status = error.get("code", response.status_code)
-        except Exception:
-            msg = response.text
-            status = response.status_code
-
-        if status == 400: # INVALID_ARGUMENT
-             raise ProviderError(f"Gemini Invalid Argument: {msg}", provider="gemini", status_code=400)
-        elif status == 401 or response.status_code == 401:
-            raise AuthenticationError(f"Gemini Auth Failed: {msg}", provider="gemini", status_code=401)
-        elif status == 429 or response.status_code == 429:
-            raise RateLimitError(f"Gemini Rate Limit: {msg}", provider="gemini", status_code=429)
-        else:
-            raise ProviderError(f"Gemini Error {status}: {msg}", provider="gemini", status_code=response.status_code)
-
     def _get_url(self, model: str, stream: bool = False) -> str:
         # If model doesn't start with 'models/', prepend it? No, standard is often just 'gemini-1.5-flash'
         # But API expects `https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent`
@@ -169,31 +151,33 @@ class GeminiProvider(BaseProvider):
         action = "streamGenerateContent" if stream else "generateContent"
         return f"{self.base_url}/{model_path}:{action}"
 
+    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         model = request.model or self.config.default_model or "gemini-1.5-flash"
         payload = self.convert_request(request)
         url = self._get_url(model, stream=False)
         
         try:
-            response = client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Gemini")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="gemini")
+            self.handle_request_error(e, "Gemini")
 
+    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         model = request.model or self.config.default_model or "gemini-1.5-flash"
         payload = self.convert_request(request)
         url = self._get_url(model, stream=False)
         
         try:
-            response = await client.post(url, headers=self.headers, json=payload, timeout=60.0)
+            response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
             if response.status_code != 200:
-                self._handle_error(response)
+                self.handle_error_response(response, "Gemini")
             return self.convert_response(response.json())
         except httpx.RequestError as e:
-            raise ProviderError(f"Network error: {str(e)}", provider="gemini")
+            self.handle_request_error(e, "Gemini")
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
         model = request.model or self.config.default_model or "gemini-1.5-flash"
@@ -215,9 +199,9 @@ class GeminiProvider(BaseProvider):
         url += "?alt=sse"
         
         try:
-            with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Gemini")
                 
                 for line in response.iter_lines():
                     if not line: continue
@@ -227,10 +211,10 @@ class GeminiProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Gemini")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="gemini")
+            self.handle_request_error(e, "Gemini")
 
     async def stream_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> AsyncIterator[UnifiedChunk]:
         model = request.model or self.config.default_model or "gemini-1.5-flash"
@@ -239,9 +223,9 @@ class GeminiProvider(BaseProvider):
         url += "?alt=sse"
         
         try:
-            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=60.0) as response:
+            async with client.stream("POST", url, headers=self.headers, json=payload, timeout=self.config.timeout) as response:
                 if response.status_code != 200:
-                    self._handle_error(response)
+                    self.handle_error_response(response, "Gemini")
                 
                 async for line in response.aiter_lines():
                     if not line: continue
@@ -251,7 +235,7 @@ class GeminiProvider(BaseProvider):
                         try:
                             data = json.loads(data_str)
                             yield self._convert_chunk(data)
-                        except json.JSONDecodeError:
-                            continue
+                        except json.JSONDecodeError as e:
+                            raise StreamError(f"Failed to parse stream data: {str(e)}", provider="Gemini")
         except httpx.RequestError as e:
-             raise ProviderError(f"Network error during stream: {str(e)}", provider="gemini")
+            self.handle_request_error(e, "Gemini")
