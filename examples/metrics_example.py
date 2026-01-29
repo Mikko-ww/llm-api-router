@@ -64,18 +64,22 @@ def main():
         print(f"Failed: {agg.failed_requests}")
         print(f"Success Rate: {agg.success_rate:.2%}")
         print(f"\nLatency Statistics:")
-        print(f"  Min: {agg.min_latency_ms:.2f}ms")
-        print(f"  Max: {agg.max_latency_ms:.2f}ms")
-        print(f"  Avg: {agg.avg_latency_ms:.2f}ms")
-        print(f"  P50: {agg.p50_latency_ms:.2f}ms")
-        print(f"  P95: {agg.p95_latency_ms:.2f}ms")
-        print(f"  P99: {agg.p99_latency_ms:.2f}ms")
+        if agg.min_latency_ms is not None:
+            print(f"  Min: {agg.min_latency_ms:.2f}ms")
+            print(f"  Max: {agg.max_latency_ms:.2f}ms")
+            print(f"  Avg: {agg.avg_latency_ms:.2f}ms")
+            print(f"  P50: {agg.p50_latency_ms:.2f}ms")
+            print(f"  P95: {agg.p95_latency_ms:.2f}ms")
+            print(f"  P99: {agg.p99_latency_ms:.2f}ms")
+        else:
+            print("  No latency data available")
         print(f"\nToken Usage:")
         print(f"  Total Prompt Tokens: {agg.total_prompt_tokens}")
         print(f"  Total Completion Tokens: {agg.total_completion_tokens}")
         print(f"  Total Tokens: {agg.total_tokens}")
-        print(f"  Avg Prompt Tokens: {agg.avg_prompt_tokens:.1f}")
-        print(f"  Avg Completion Tokens: {agg.avg_completion_tokens:.1f}")
+        if agg.avg_prompt_tokens is not None:
+            print(f"  Avg Prompt Tokens: {agg.avg_prompt_tokens:.1f}")
+            print(f"  Avg Completion Tokens: {agg.avg_completion_tokens:.1f}")
         
         if agg.error_counts:
             print(f"\nError Breakdown:")
@@ -120,8 +124,9 @@ def main():
         print(f"  Model: {comp['model']}")
         print(f"  Total Requests: {comp['total_requests']}")
         print(f"  Success Rate: {comp['success_rate']:.2%}")
-        print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
-        print(f"  P95 Latency: {comp['p95_latency_ms']:.2f}ms")
+        if comp['avg_latency_ms'] is not None:
+            print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
+            print(f"  P95 Latency: {comp['p95_latency_ms']:.2f}ms")
         print(f"  Total Tokens: {comp['total_tokens']}")
     
     client.close()
@@ -175,7 +180,8 @@ def example_with_multiple_providers():
     for comp in comparison:
         print(f"\nProvider: {comp['provider']} ({comp['model']})")
         print(f"  Success Rate: {comp['success_rate']:.2%}")
-        print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
+        if comp['avg_latency_ms'] is not None:
+            print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
         print(f"  Total Tokens: {comp['total_tokens']}")
     
     openai_client.close()

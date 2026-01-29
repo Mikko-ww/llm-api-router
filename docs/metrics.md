@@ -119,17 +119,19 @@ for agg in aggregated:
     print(f"Success Rate: {agg.success_rate:.2%}")
     
     # Latency statistics
-    print(f"Latency - Min: {agg.min_latency_ms:.2f}ms")
-    print(f"Latency - Max: {agg.max_latency_ms:.2f}ms")
-    print(f"Latency - Avg: {agg.avg_latency_ms:.2f}ms")
-    print(f"Latency - P50: {agg.p50_latency_ms:.2f}ms")
-    print(f"Latency - P95: {agg.p95_latency_ms:.2f}ms")
-    print(f"Latency - P99: {agg.p99_latency_ms:.2f}ms")
+    if agg.min_latency_ms is not None:
+        print(f"Latency - Min: {agg.min_latency_ms:.2f}ms")
+        print(f"Latency - Max: {agg.max_latency_ms:.2f}ms")
+        print(f"Latency - Avg: {agg.avg_latency_ms:.2f}ms")
+        print(f"Latency - P50: {agg.p50_latency_ms:.2f}ms")
+        print(f"Latency - P95: {agg.p95_latency_ms:.2f}ms")
+        print(f"Latency - P99: {agg.p99_latency_ms:.2f}ms")
     
     # Token usage
     print(f"Total Tokens: {agg.total_tokens}")
-    print(f"Avg Prompt Tokens: {agg.avg_prompt_tokens:.1f}")
-    print(f"Avg Completion Tokens: {agg.avg_completion_tokens:.1f}")
+    if agg.avg_prompt_tokens is not None:
+        print(f"Avg Prompt Tokens: {agg.avg_prompt_tokens:.1f}")
+        print(f"Avg Completion Tokens: {agg.avg_completion_tokens:.1f}")
     
     # Error breakdown
     if agg.error_counts:
@@ -149,8 +151,9 @@ comparison = client.compare_providers()
 for comp in comparison:
     print(f"{comp['provider']} ({comp['model']})")
     print(f"  Success Rate: {comp['success_rate']:.2%}")
-    print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
-    print(f"  P95 Latency: {comp['p95_latency_ms']:.2f}ms")
+    if comp['avg_latency_ms'] is not None:
+        print(f"  Avg Latency: {comp['avg_latency_ms']:.2f}ms")
+        print(f"  P95 Latency: {comp['p95_latency_ms']:.2f}ms")
     print(f"  Total Tokens: {comp['total_tokens']}")
 ```
 
