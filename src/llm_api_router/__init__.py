@@ -11,6 +11,11 @@ from .types import (
     Choice,
     ChunkChoice,
     Usage,
+    # Function calling types
+    Tool,
+    ToolCall,
+    FunctionCall,
+    FunctionDefinition,
     # Embeddings types
     EmbeddingRequest,
     EmbeddingResponse,
@@ -47,6 +52,11 @@ __all__ = [
     "Choice",
     "ChunkChoice",
     "Usage",
+    # Function calling types
+    "Tool",
+    "ToolCall",
+    "FunctionCall",
+    "FunctionDefinition",
     # Embeddings types
     "EmbeddingRequest",
     "EmbeddingResponse",

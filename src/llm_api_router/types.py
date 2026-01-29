@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
 
 @dataclass
 class RetryConfig:
@@ -26,7 +26,43 @@ class ProviderConfig:
 class Message:
     """消息实体"""
     role: str
-    content: str
+    content: Optional[str] = None  # Content can be None when there are tool_calls
+    tool_calls: Optional[List['ToolCall']] = None  # For assistant messages with tool calls
+    tool_call_id: Optional[str] = None  # For tool messages (function results)
+
+
+# --- Function/Tool Calling Types ---
+
+@dataclass
+class FunctionDefinition:
+    """函数定义"""
+    name: str  # Function name
+    description: str  # Function description
+    parameters: Dict[str, Any]  # JSON Schema for function parameters
+    strict: Optional[bool] = None  # OpenAI: strict schema adherence
+
+
+@dataclass
+class Tool:
+    """工具定义 (OpenAI style)"""
+    type: str = "function"  # Always "function" for now
+    function: Optional[FunctionDefinition] = None
+
+
+@dataclass
+class FunctionCall:
+    """函数调用信息"""
+    name: str  # Function name
+    arguments: str  # JSON string of arguments
+
+
+@dataclass
+class ToolCall:
+    """工具调用 (在响应中)"""
+    id: str  # Unique identifier for this tool call
+    type: str  # "function"
+    function: FunctionCall
+
 
 @dataclass
 class UnifiedRequest:
@@ -38,6 +74,8 @@ class UnifiedRequest:
     stream: bool = False
     top_p: Optional[float] = None
     stop: Optional[List[str]] = None
+    tools: Optional[List[Tool]] = None  # Function calling: tools available to the model
+    tool_choice: Optional[Union[str, Dict[str, Any]]] = None  # "none", "auto", "required", or specific tool
 
 @dataclass
 class Usage:
