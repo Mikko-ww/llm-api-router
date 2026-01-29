@@ -8,7 +8,6 @@ from ..types import (
     Embedding, EmbeddingUsage, Tool, ToolCall, FunctionCall, FunctionDefinition
 )
 from ..exceptions import StreamError
-from ..retry import with_retry, with_retry_async
 from .base import BaseProvider
 
 class OpenAIProvider(BaseProvider):
@@ -147,8 +146,10 @@ class OpenAIProvider(BaseProvider):
             choices=choices
         )
 
-    @with_retry()
     def send_request(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
+        return self._with_retry(self._send_request_impl)(client, request)
+    
+    def _send_request_impl(self, client: httpx.Client, request: UnifiedRequest) -> UnifiedResponse:
         start_time = time.time()
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
@@ -182,8 +183,10 @@ class OpenAIProvider(BaseProvider):
         except httpx.RequestError as e:
             self.handle_request_error(e, "OpenAI", request.request_id)
 
-    @with_retry_async()
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
+        return await self._with_retry_async(self._send_request_async_impl)(client, request)
+    
+    async def _send_request_async_impl(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
         start_time = time.time()
         payload = self.convert_request(request)
         url = f"{self.base_url}/chat/completions"
@@ -318,8 +321,10 @@ class OpenAIProvider(BaseProvider):
             object=provider_response.get("object", "list")
         )
     
-    @with_retry()
     def create_embeddings(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
+        return self._with_retry(self._create_embeddings_impl)(client, request)
+    
+    def _create_embeddings_impl(self, client: httpx.Client, request: EmbeddingRequest) -> EmbeddingResponse:
         """创建文本嵌入（同步）"""
         payload = self._convert_embedding_request(request)
         url = f"{self.base_url}/embeddings"
@@ -331,8 +336,10 @@ class OpenAIProvider(BaseProvider):
         except httpx.RequestError as e:
             self.handle_request_error(e, "OpenAI")
     
-    @with_retry_async()
     async def create_embeddings_async(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
+        return await self._with_retry_async(self._create_embeddings_async_impl)(client, request)
+    
+    async def _create_embeddings_async_impl(self, client: httpx.AsyncClient, request: EmbeddingRequest) -> EmbeddingResponse:
         """创建文本嵌入（异步）"""
         payload = self._convert_embedding_request(request)
         url = f"{self.base_url}/embeddings"

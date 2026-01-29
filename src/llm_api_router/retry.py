@@ -122,6 +122,10 @@ def with_retry(config: Optional[RetryConfig] = None):
                     time.sleep(delay)
             
             # 所有重试都失败
+            # If no retries were attempted (max_retries=0), raise the original exception
+            if retry_config.max_retries == 0:
+                raise last_exception
+            
             raise RetryExhaustedError(
                 f"请求失败，已重试 {retry_config.max_retries} 次: {str(last_exception)}",
                 status_code=last_status_code,
@@ -193,6 +197,10 @@ def with_retry_async(config: Optional[RetryConfig] = None):
                     await asyncio.sleep(delay)
             
             # 所有重试都失败
+            # If no retries were attempted (max_retries=0), raise the original exception
+            if retry_config.max_retries == 0:
+                raise last_exception
+            
             raise RetryExhaustedError(
                 f"请求失败，已重试 {retry_config.max_retries} 次: {str(last_exception)}",
                 status_code=last_status_code,

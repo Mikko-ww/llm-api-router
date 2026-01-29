@@ -25,6 +25,11 @@ class BaseProvider(ABC):
         self.config = config
         self.retry_config = config.retry_config or RetryConfig()
         self.logger = get_logger(self.__class__.__name__)
+        
+        # Store retry decorators configured with this provider's retry config
+        from ..retry import with_retry, with_retry_async
+        self._with_retry = with_retry(self.retry_config)
+        self._with_retry_async = with_retry_async(self.retry_config)
     
     @abstractmethod
     def convert_request(self, request: UnifiedRequest) -> Dict[str, Any]:
