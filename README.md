@@ -15,6 +15,7 @@
 - **Async Support**: Native support for `asyncio` and `await` calls.
 - **Type Safety**: Comprehensive Type Hints, strictly checked via MyPy.
 - **Embeddings API**: Unified text embeddings interface supporting OpenAI, Gemini, Zhipu, and Aliyun providers.
+- **Function Calling**: Unified tool/function calling support for OpenAI and Anthropic providers.
 
 ## Architecture Design
 
@@ -204,6 +205,126 @@ async with AsyncClient(config) as client:
 | **Aliyun** | text-embedding-v2 | DashScope format |
 
 For complete examples, see [examples/embeddings_example.py](examples/embeddings_example.py).
+
+## Function Calling (Tool Use)
+
+The library provides unified support for function calling (also known as tool use), allowing models to intelligently call functions to retrieve information or perform actions. This feature is supported by OpenAI, Anthropic, and other compatible providers.
+
+### Basic Function Calling
+
+```python
+from llm_api_router import Client, ProviderConfig, Tool, FunctionDefinition
+import json
+
+# Define a tool
+tools = [
+    Tool(
+        type="function",
+        function=FunctionDefinition(
+            name="get_weather",
+            description="Get the current weather in a given location",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "location": {
+                        "type": "string",
+                        "description": "The city and state, e.g. San Francisco, CA"
+                    },
+                    "unit": {
+                        "type": "string",
+                        "enum": ["celsius", "fahrenheit"]
+                    }
+                },
+                "required": ["location"]
+            }
+        )
+    )
+]
+
+config = ProviderConfig(
+    provider_type="openai",  # or "anthropic"
+    api_key="your-api-key",
+    default_model="gpt-4"
+)
+
+with Client(config) as client:
+    # Request with tools
+    response = client.chat.completions.create(
+        messages=[{"role": "user", "content": "What's the weather in San Francisco?"}],
+        tools=tools,
+        tool_choice="auto"  # "auto", "required", or "none"
+    )
+    
+    # Check if model wants to call a function
+    message = response.choices[0].message
+    if message.tool_calls:
+        for tool_call in message.tool_calls:
+            function_name = tool_call.function.name
+            function_args = json.loads(tool_call.function.arguments)
+            print(f"Calling {function_name} with args: {function_args}")
+            
+            # Execute function and get result
+            result = get_weather(**function_args)  # Your function
+            
+            # Send result back to model
+            # (Add tool result message and make another request)
+```
+
+### Multi-turn Function Calling
+
+For complex interactions, you can have multiple turns of function calling:
+
+```python
+messages = [
+    {"role": "user", "content": "Plan a trip to Tokyo"}
+]
+
+response = client.chat.completions.create(messages=messages, tools=tools)
+
+# Model decides to call functions
+if response.choices[0].message.tool_calls:
+    # Add assistant message
+    messages.append({
+        "role": "assistant",
+        "content": response.choices[0].message.content,
+        "tool_calls": [
+            {
+                "id": tc.id,
+                "type": tc.type,
+                "function": {
+                    "name": tc.function.name,
+                    "arguments": tc.function.arguments
+                }
+            }
+            for tc in response.choices[0].message.tool_calls
+        ]
+    })
+    
+    # Add function results
+    for tool_call in response.choices[0].message.tool_calls:
+        result = execute_function(tool_call.function.name, 
+                                 json.loads(tool_call.function.arguments))
+        messages.append({
+            "role": "tool",
+            "tool_call_id": tool_call.id,
+            "content": json.dumps(result)
+        })
+    
+    # Get final response
+    final_response = client.chat.completions.create(messages=messages, tools=tools)
+    print(final_response.choices[0].message.content)
+```
+
+### Supported Function Calling Providers
+
+| Provider | Status | Notes |
+|---|---|---|
+| **OpenAI** | ✅ Fully Supported | Native tool calling support |
+| **Anthropic** | ✅ Fully Supported | Converted to Anthropic's tool use format |
+
+For complete examples, see:
+- [examples/function_calling_example.py](examples/function_calling_example.py) - Basic function calling
+- [examples/multi_turn_function_calling.py](examples/multi_turn_function_calling.py) - Advanced multi-turn agent example
 
 ## Error Handling and Retry
 
