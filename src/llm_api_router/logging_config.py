@@ -17,9 +17,6 @@ class LogConfig:
     format: str = "text"  # "text" or "json"
     enable_request_id: bool = True
     filter_sensitive: bool = True
-    log_requests: bool = True
-    log_responses: bool = True
-    log_errors: bool = True
     
     # Sensitive patterns to filter
     sensitive_patterns: list = field(default_factory=lambda: [
@@ -94,7 +91,8 @@ class StructuredFormatter(logging.Formatter):
             log_data["provider"] = record.provider
         
         # Add extra fields
-        for key in ["model", "latency_ms", "status_code", "tokens", "attempt"]:
+        for key in ["model", "latency_ms", "status_code", "tokens", "attempt", 
+                    "message_count", "stream", "delay"]:
             if hasattr(record, key):
                 log_data[key] = getattr(record, key)
         
@@ -158,30 +156,29 @@ def setup_logging(config: Optional[LogConfig] = None) -> logging.Logger:
     level = getattr(logging, config.level.upper(), logging.INFO)
     logger.setLevel(level)
     
-    # Remove existing handlers to avoid duplicates
-    logger.handlers.clear()
-    
-    # Create console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setLevel(level)
-    
-    # Set formatter based on config
-    if config.format == "json":
-        formatter = StructuredFormatter(
-            filter_sensitive=config.filter_sensitive,
-            sensitive_patterns=config.sensitive_patterns
-        )
-    else:
-        formatter = TextFormatter(
-            filter_sensitive=config.filter_sensitive,
-            sensitive_patterns=config.sensitive_patterns
-        )
-    
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-    
-    # Prevent propagation to root logger
-    logger.propagate = False
+    # Only configure if not already configured (avoid duplicate handlers)
+    if not logger.handlers:
+        # Create console handler
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(level)
+        
+        # Set formatter based on config
+        if config.format == "json":
+            formatter = StructuredFormatter(
+                filter_sensitive=config.filter_sensitive,
+                sensitive_patterns=config.sensitive_patterns
+            )
+        else:
+            formatter = TextFormatter(
+                filter_sensitive=config.filter_sensitive,
+                sensitive_patterns=config.sensitive_patterns
+            )
+        
+        console_handler.setFormatter(formatter)
+        logger.addHandler(console_handler)
+        
+        # Prevent propagation to root logger
+        logger.propagate = False
     
     return logger
 
@@ -206,5 +203,7 @@ def generate_request_id() -> str:
     return str(uuid.uuid4())
 
 
-# Initialize default logger
-_default_logger = setup_logging()
+# Initialize default logger only if not already configured
+_logger = logging.getLogger("llm_api_router")
+if not _logger.handlers:
+    _default_logger = setup_logging()

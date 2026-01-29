@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Union, Iterator, AsyncIterator
 import httpx
+import logging
 from .types import (
     ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk,
     EmbeddingRequest, EmbeddingResponse
@@ -100,8 +101,9 @@ class Client:
         self.chat = Chat(self)
         self.embeddings = Embeddings(self)
         
-        # Initialize logging
-        self._logger = setup_logging(config.log_config)
+        # Initialize logging only if custom config is provided or not yet configured
+        if config.log_config or not logging.getLogger("llm_api_router").handlers:
+            self._logger = setup_logging(config.log_config)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
@@ -205,8 +207,9 @@ class AsyncClient:
         self.chat = AsyncChat(self)
         self.embeddings = AsyncEmbeddings(self)
         
-        # Initialize logging
-        self._logger = setup_logging(config.log_config)
+        # Initialize logging only if custom config is provided or not yet configured
+        if config.log_config or not logging.getLogger("llm_api_router").handlers:
+            self._logger = setup_logging(config.log_config)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)

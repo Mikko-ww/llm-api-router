@@ -27,9 +27,6 @@ class TestLogConfig:
         assert config.format == "text"
         assert config.enable_request_id is True
         assert config.filter_sensitive is True
-        assert config.log_requests is True
-        assert config.log_responses is True
-        assert config.log_errors is True
         assert len(config.sensitive_patterns) > 0
     
     def test_custom_config(self):
@@ -295,6 +292,10 @@ class TestLoggingSetup:
     
     def test_setup_json_format(self):
         """Test setup with JSON format"""
+        # Clear any existing handlers first
+        logger = logging.getLogger("llm_api_router")
+        logger.handlers.clear()
+        
         config = LogConfig(format="json")
         logger = setup_logging(config)
         handler = logger.handlers[0]
@@ -302,6 +303,10 @@ class TestLoggingSetup:
     
     def test_setup_text_format(self):
         """Test setup with text format"""
+        # Clear any existing handlers first
+        logger = logging.getLogger("llm_api_router")
+        logger.handlers.clear()
+        
         config = LogConfig(format="text")
         logger = setup_logging(config)
         handler = logger.handlers[0]
