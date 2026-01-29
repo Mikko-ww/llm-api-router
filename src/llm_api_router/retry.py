@@ -12,6 +12,9 @@ from .exceptions import (
     TimeoutError,
     NetworkError,
 )
+from .logging_config import get_logger
+
+logger = get_logger("retry")
 
 T = TypeVar('T')
 
@@ -77,6 +80,11 @@ def with_retry(config: Optional[RetryConfig] = None):
             last_exception = None
             last_status_code = None
             
+            # Try to extract request_id from args (if UnifiedRequest is first positional arg after client)
+            request_id = None
+            if len(args) >= 2 and hasattr(args[1], 'request_id'):
+                request_id = args[1].request_id
+            
             for attempt in range(retry_config.max_retries + 1):
                 try:
                     return func(*args, **kwargs)
@@ -98,10 +106,26 @@ def with_retry(config: Optional[RetryConfig] = None):
                     # 计算延迟时间
                     delay = calculate_backoff_delay(attempt, retry_config)
                     
+                    # Log retry attempt
+                    log_extra = {"attempt": attempt + 1, "delay": delay}
+                    if request_id:
+                        log_extra["request_id"] = request_id
+                    if status_code:
+                        log_extra["status_code"] = status_code
+                    
+                    logger.warning(
+                        f"Retry attempt {attempt + 1}/{retry_config.max_retries} after {delay}s: {type(e).__name__}",
+                        extra=log_extra
+                    )
+                    
                     # 等待后重试
                     time.sleep(delay)
             
             # 所有重试都失败
+            # If no retries were attempted (max_retries=0), raise the original exception
+            if retry_config.max_retries == 0:
+                raise last_exception
+            
             raise RetryExhaustedError(
                 f"请求失败，已重试 {retry_config.max_retries} 次: {str(last_exception)}",
                 status_code=last_status_code,
@@ -131,6 +155,11 @@ def with_retry_async(config: Optional[RetryConfig] = None):
             last_exception = None
             last_status_code = None
             
+            # Try to extract request_id from args (if UnifiedRequest is first positional arg after client)
+            request_id = None
+            if len(args) >= 2 and hasattr(args[1], 'request_id'):
+                request_id = args[1].request_id
+            
             for attempt in range(retry_config.max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
@@ -152,10 +181,26 @@ def with_retry_async(config: Optional[RetryConfig] = None):
                     # 计算延迟时间
                     delay = calculate_backoff_delay(attempt, retry_config)
                     
+                    # Log retry attempt
+                    log_extra = {"attempt": attempt + 1, "delay": delay}
+                    if request_id:
+                        log_extra["request_id"] = request_id
+                    if status_code:
+                        log_extra["status_code"] = status_code
+                    
+                    logger.warning(
+                        f"Retry attempt {attempt + 1}/{retry_config.max_retries} after {delay}s: {type(e).__name__}",
+                        extra=log_extra
+                    )
+                    
                     # 等待后重试
                     await asyncio.sleep(delay)
             
             # 所有重试都失败
+            # If no retries were attempted (max_retries=0), raise the original exception
+            if retry_config.max_retries == 0:
+                raise last_exception
+            
             raise RetryExhaustedError(
                 f"请求失败，已重试 {retry_config.max_retries} 次: {str(last_exception)}",
                 status_code=last_status_code,

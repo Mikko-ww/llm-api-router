@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional, Union, Iterator, AsyncIterator
 import httpx
+import logging
 from .types import (
     ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk,
     EmbeddingRequest, EmbeddingResponse
@@ -7,6 +8,7 @@ from .types import (
 
 from .exceptions import LLMRouterError
 from .factory import ProviderFactory
+from .logging_config import setup_logging, generate_request_id, get_logger
 
 # --- Synchronous Classes ---
 
@@ -34,7 +36,8 @@ class Completions:
             max_tokens=max_tokens,
             stream=stream,
             top_p=top_p,
-            stop=stop
+            stop=stop,
+            request_id=generate_request_id()
         )
         
         if stream:
@@ -97,6 +100,10 @@ class Client:
         self._provider = self._get_provider(config)
         self.chat = Chat(self)
         self.embeddings = Embeddings(self)
+        
+        # Initialize logging only if custom config is provided or not yet configured
+        if config.log_config or not logging.getLogger("llm_api_router").handlers:
+            self._logger = setup_logging(config.log_config)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
@@ -199,6 +206,10 @@ class AsyncClient:
         self._provider = self._get_provider(config)
         self.chat = AsyncChat(self)
         self.embeddings = AsyncEmbeddings(self)
+        
+        # Initialize logging only if custom config is provided or not yet configured
+        if config.log_config or not logging.getLogger("llm_api_router").handlers:
+            self._logger = setup_logging(config.log_config)
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)

@@ -100,10 +100,13 @@ class TestClientIntegration:
 
     def test_client_error_handling(self):
         """Test client error handling for various HTTP errors."""
+        from llm_api_router import RetryConfig
+        
         config = ProviderConfig(
             provider_type="openai",
             api_key="sk-invalid-key",
-            default_model="gpt-3.5-turbo"
+            default_model="gpt-3.5-turbo",
+            retry_config=RetryConfig(max_retries=0)  # Disable retries to immediately get error
         )
         
         with patch('httpx.Client.post') as mock_post:
@@ -180,10 +183,13 @@ class TestAsyncClientIntegration:
     @pytest.mark.asyncio
     async def test_async_client_error_handling(self):
         """Test async client error handling."""
+        from llm_api_router import RetryConfig
+        
         config = ProviderConfig(
             provider_type="openai",
             api_key="sk-invalid-key",
-            default_model="gpt-3.5-turbo"
+            default_model="gpt-3.5-turbo",
+            retry_config=RetryConfig(max_retries=0)  # Disable retries to immediately get error
         )
         
         with patch('httpx.AsyncClient.post') as mock_post:
