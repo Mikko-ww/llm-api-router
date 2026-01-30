@@ -17,6 +17,7 @@
 - **Embeddings API**: Unified text embeddings interface supporting OpenAI, Gemini, Zhipu, and Aliyun providers.
 - **Function Calling**: Unified tool/function calling support for OpenAI and Anthropic providers.
 - **Connection Pool Optimization**: Configurable HTTP connection pooling with fine-grained timeout control for optimal performance and resource efficiency.
+- **Response Caching**: Optional response caching with memory and Redis backends to reduce redundant API calls and improve performance.
 
 ## Architecture Design
 
@@ -390,6 +391,91 @@ The library includes advanced HTTP connection pool optimization features for imp
 - Streaming buffer sizes
 
 For detailed performance optimization documentation and configuration examples, see [docs/connection_pool_optimization.md](docs/connection_pool_optimization.md).
+
+## Response Caching
+
+The library supports optional response caching to reduce redundant API calls and improve performance. Caching is especially useful for:
+
+- Development and testing environments
+- Repeated queries with identical parameters
+- Reducing API costs
+- Improving response times for cached requests
+
+### Basic Cache Configuration
+
+```python
+from llm_api_router import Client, ProviderConfig
+from llm_api_router.cache import CacheConfig
+
+# Configure cache with memory backend
+cache_config = CacheConfig(
+    enabled=True,
+    backend="memory",        # "memory" or "redis"
+    ttl=3600,               # Time-to-live in seconds (1 hour)
+    max_size=1000           # Maximum cached items (memory backend only)
+)
+
+config = ProviderConfig(
+    provider_type="openai",
+    api_key="your-api-key",
+    cache_config=cache_config
+)
+
+with Client(config) as client:
+    # First call - hits the API
+    response1 = client.chat.completions.create(
+        messages=[{"role": "user", "content": "What is Python?"}]
+    )
+    
+    # Second identical call - hits the cache (much faster!)
+    response2 = client.chat.completions.create(
+        messages=[{"role": "user", "content": "What is Python?"}]
+    )
+    
+    # Get cache statistics
+    stats = client.get_cache_stats()
+    print(f"Cache hit rate: {stats['hit_rate']:.1%}")
+```
+
+### Redis Cache Backend
+
+For production environments or distributed systems, use Redis backend:
+
+```python
+# Requires: pip install redis
+
+cache_config = CacheConfig(
+    enabled=True,
+    backend="redis",
+    ttl=3600,
+    redis_url="redis://localhost:6379/0",  # Redis connection URL
+    redis_prefix="myapp:"                   # Key prefix for organization
+)
+```
+
+### Cache Management
+
+```python
+# Get cache statistics
+stats = client.get_cache_stats()
+print(f"Backend: {stats['backend']}")
+print(f"Size: {stats['size']}")
+print(f"Hits: {stats['hits']}")
+print(f"Misses: {stats['misses']}")
+print(f"Hit rate: {stats['hit_rate']:.1%}")
+
+# Clear cache
+client.clear_cache()
+```
+
+### Important Notes
+
+- **Streaming requests are not cached** - Each streaming request hits the API
+- Cache keys are generated from request content (messages, model, temperature, etc.)
+- Non-content fields like `request_id` and `stream` don't affect cache keys
+- Both `Client` and `AsyncClient` support caching
+
+For more examples, see [examples/cache_example.py](examples/cache_example.py).
 
 ## Supported Model Providers
 
