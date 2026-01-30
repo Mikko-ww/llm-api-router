@@ -16,6 +16,9 @@ license = { text = "MIT" }
 [project.urls]
 Homepage = "https://github.com/Mikko-ww/llm-api-router"
 
+[project.scripts]
+llm-router = "llm_api_router.cli.main:app"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
@@ -23,6 +26,18 @@ dev = [
     "pytest-mock>=3.12.0",
     "pytest-cov>=4.1.0",
     "mypy>=1.8.0",
+]
+cli = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings[python]>=0.24.0",
+]
+all = [
+    "llm-api-router[cli,docs,dev]",
 ]
 
 [build-system]
