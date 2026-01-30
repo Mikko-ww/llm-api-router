@@ -456,22 +456,22 @@
 
 ## 第六期：集成和生态 (Sprint 11-12)
 
-### 任务 6.1: LangChain集成 [P1, M]
+### 任务 6.1: LangChain集成 [P1, M] ✅
 **目标**: 支持作为LangChain的LLM provider
 
 **子任务**:
-- [ ] 创建integrations/langchain目录
-- [ ] 实现LangChain LLM接口
-- [ ] 实现LangChain Chat Model接口
-- [ ] 实现Embeddings接口
-- [ ] 编写集成测试
-- [ ] 创建使用示例
-- [ ] 添加集成文档
+- [x] 创建integrations/langchain目录
+- [x] 实现LangChain LLM接口 (RouterLLM)
+- [x] 实现LangChain Chat Model接口 (RouterChatModel)
+- [x] 实现Embeddings接口 (RouterEmbeddings)
+- [x] 编写集成测试 (28个测试全部通过)
+- [x] 创建使用示例 (langchain_integration_example.py)
+- [x] 添加集成文档 (langchain-integration.md)
 
 **验收标准**:
-- 完全兼容LangChain接口
-- 所有功能可用
-- 示例完整
+- 完全兼容LangChain接口 ✅
+- 所有功能可用 ✅ (LLM, ChatModel, Embeddings, Tool Calling, Streaming)
+- 示例完整 ✅
 
 **依赖**: 任务2.3, 任务2.4
 

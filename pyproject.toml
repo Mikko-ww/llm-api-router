@@ -36,8 +36,11 @@ docs = [
     "mkdocs-material>=9.0.0",
     "mkdocstrings[python]>=0.24.0",
 ]
+langchain = [
+    "langchain-core>=0.2.0",
+]
 all = [
-    "llm-api-router[cli,docs,dev]",
+    "llm-api-router[cli,docs,dev,langchain]",
 ]
 
 [build-system]

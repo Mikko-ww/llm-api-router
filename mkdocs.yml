@@ -67,6 +67,8 @@ nav:
     - Providers: user-guide/providers.md
     - Configuration: user-guide/configuration.md
     - Caching: user-guide/caching.md
+  - Integrations:
+    - LangChain: langchain-integration.md
   - API Reference:
     - Client: api-reference/client.md
     - Types: api-reference/types.md
