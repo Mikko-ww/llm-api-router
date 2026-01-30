@@ -53,6 +53,43 @@ from .cache import (
     RedisCacheBackend,
     generate_cache_key,
 )
+from .rate_limiter import (
+    RateLimiter,
+    RateLimiterConfig,
+    RateLimiterBackend,
+    TokenBucketBackend,
+    SlidingWindowBackend,
+)
+from .templates import (
+    PromptTemplate,
+    TemplateEngine,
+    TemplateRegistry,
+    BuiltinTemplates,
+)
+from .conversation import (
+    ConversationManager,
+    ConversationConfig,
+    TokenCounter,
+    TruncationStrategy,
+    SlidingWindowStrategy,
+    KeepRecentStrategy,
+    ImportanceBasedStrategy,
+    create_conversation,
+)
+from .load_balancer import (
+    LoadBalancer,
+    LoadBalancerConfig,
+    Endpoint,
+    EndpointStatus,
+    EndpointStats,
+    SelectionStrategy,
+    RoundRobinStrategy,
+    WeightedStrategy,
+    LeastLatencyStrategy,
+    RandomStrategy,
+    FailoverStrategy,
+    create_load_balancer,
+)
 
 __version__ = "0.1.2"
 
@@ -111,4 +148,37 @@ __all__ = [
     "MemoryCacheBackend",
     "RedisCacheBackend",
     "generate_cache_key",
+    # Rate Limiter
+    "RateLimiter",
+    "RateLimiterConfig",
+    "RateLimiterBackend",
+    "TokenBucketBackend",
+    "SlidingWindowBackend",
+    # Prompt Templates
+    "PromptTemplate",
+    "TemplateEngine",
+    "TemplateRegistry",
+    "BuiltinTemplates",
+    # Conversation Management
+    "ConversationManager",
+    "ConversationConfig",
+    "TokenCounter",
+    "TruncationStrategy",
+    "SlidingWindowStrategy",
+    "KeepRecentStrategy",
+    "ImportanceBasedStrategy",
+    "create_conversation",
+    # Load Balancer
+    "LoadBalancer",
+    "LoadBalancerConfig",
+    "Endpoint",
+    "EndpointStatus",
+    "EndpointStats",
+    "SelectionStrategy",
+    "RoundRobinStrategy",
+    "WeightedStrategy",
+    "LeastLatencyStrategy",
+    "RandomStrategy",
+    "FailoverStrategy",
+    "create_load_balancer",
 ]
