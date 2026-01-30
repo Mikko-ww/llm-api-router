@@ -4,6 +4,8 @@ from .client import Client, AsyncClient
 from .types import (
     ProviderConfig,
     RetryConfig,
+    TimeoutConfig,
+    ConnectionPoolConfig,
     UnifiedRequest,
     UnifiedResponse,
     UnifiedChunk,
@@ -53,6 +55,8 @@ __all__ = [
     # Types
     "ProviderConfig",
     "RetryConfig",
+    "TimeoutConfig",
+    "ConnectionPoolConfig",
     "UnifiedRequest",
     "UnifiedResponse",
     "UnifiedChunk",

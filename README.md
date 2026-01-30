@@ -16,6 +16,7 @@
 - **Type Safety**: Comprehensive Type Hints, strictly checked via MyPy.
 - **Embeddings API**: Unified text embeddings interface supporting OpenAI, Gemini, Zhipu, and Aliyun providers.
 - **Function Calling**: Unified tool/function calling support for OpenAI and Anthropic providers.
+- **Connection Pool Optimization**: Configurable HTTP connection pooling with fine-grained timeout control for optimal performance and resource efficiency.
 
 ## Architecture Design
 
@@ -379,6 +380,16 @@ except LLMRouterError as e:
 ```
 
 For detailed error handling documentation, see [docs/error-handling.md](docs/error-handling.md).
+
+## Performance Optimization
+
+The library includes advanced HTTP connection pool optimization features for improved performance and resource efficiency. You can configure:
+
+- Connection pool limits and keepalive settings
+- Fine-grained timeout control (connect, read, write, pool)
+- Streaming buffer sizes
+
+For detailed performance optimization documentation and configuration examples, see [docs/connection_pool_optimization.md](docs/connection_pool_optimization.md).
 
 ## Supported Model Providers
 

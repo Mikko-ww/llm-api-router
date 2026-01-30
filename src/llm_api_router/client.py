@@ -3,7 +3,7 @@ import httpx
 import logging
 from .types import (
     ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk,
-    EmbeddingRequest, EmbeddingResponse
+    EmbeddingRequest, EmbeddingResponse, ConnectionPoolConfig, TimeoutConfig
 )
 
 from .exceptions import LLMRouterError
@@ -96,7 +96,7 @@ class Client:
     """同步客户端"""
     def __init__(self, config: ProviderConfig):
         self.config = config
-        self._http_client = httpx.Client(timeout=config.timeout)
+        self._http_client = self._create_http_client(config)
         self._provider = self._get_provider(config)
         self.chat = Chat(self)
         self.embeddings = Embeddings(self)
@@ -104,6 +104,32 @@ class Client:
         # Initialize logging only if custom config is provided or not yet configured
         if config.log_config or not logging.getLogger("llm_api_router").handlers:
             self._logger = setup_logging(config.log_config)
+    
+    def _create_http_client(self, config: ProviderConfig) -> httpx.Client:
+        """创建配置优化的HTTP客户端"""
+        # 使用细粒度超时配置或回退到简单超时
+        if config.timeout_config:
+            timeout = httpx.Timeout(
+                connect=config.timeout_config.connect,
+                read=config.timeout_config.read,
+                write=config.timeout_config.write,
+                pool=config.timeout_config.pool,
+            )
+        else:
+            timeout = config.timeout
+        
+        # 配置连接池限制
+        pool_config = config.connection_pool_config or ConnectionPoolConfig()
+        limits = httpx.Limits(
+            max_connections=pool_config.max_connections,
+            max_keepalive_connections=pool_config.max_keepalive_connections,
+            keepalive_expiry=pool_config.keepalive_expiry,
+        )
+        
+        return httpx.Client(
+            timeout=timeout,
+            limits=limits,
+        )
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
@@ -269,7 +295,7 @@ class AsyncClient:
     """异步客户端"""
     def __init__(self, config: ProviderConfig):
         self.config = config
-        self._http_client = httpx.AsyncClient(timeout=config.timeout)
+        self._http_client = self._create_http_client(config)
         self._provider = self._get_provider(config)
         self.chat = AsyncChat(self)
         self.embeddings = AsyncEmbeddings(self)
@@ -277,6 +303,32 @@ class AsyncClient:
         # Initialize logging only if custom config is provided or not yet configured
         if config.log_config or not logging.getLogger("llm_api_router").handlers:
             self._logger = setup_logging(config.log_config)
+    
+    def _create_http_client(self, config: ProviderConfig) -> httpx.AsyncClient:
+        """创建配置优化的异步HTTP客户端"""
+        # 使用细粒度超时配置或回退到简单超时
+        if config.timeout_config:
+            timeout = httpx.Timeout(
+                connect=config.timeout_config.connect,
+                read=config.timeout_config.read,
+                write=config.timeout_config.write,
+                pool=config.timeout_config.pool,
+            )
+        else:
+            timeout = config.timeout
+        
+        # 配置连接池限制
+        pool_config = config.connection_pool_config or ConnectionPoolConfig()
+        limits = httpx.Limits(
+            max_connections=pool_config.max_connections,
+            max_keepalive_connections=pool_config.max_keepalive_connections,
+            keepalive_expiry=pool_config.keepalive_expiry,
+        )
+        
+        return httpx.AsyncClient(
+            timeout=timeout,
+            limits=limits,
+        )
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)

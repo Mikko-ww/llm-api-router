@@ -14,6 +14,24 @@ class RetryConfig:
     exponential_base: float = 2.0  # 指数退避基数
     retry_on_status_codes: Tuple[int, ...] = (429, 500, 502, 503, 504)  # 需要重试的状态码
 
+
+@dataclass
+class TimeoutConfig:
+    """超时配置 - 支持更细粒度的超时控制"""
+    connect: float = 10.0  # 连接超时（秒）
+    read: float = 60.0  # 读取超时（秒）
+    write: float = 10.0  # 写入超时（秒）
+    pool: float = 10.0  # 连接池获取连接的超时（秒）
+
+
+@dataclass
+class ConnectionPoolConfig:
+    """HTTP连接池配置 - 优化连接复用和并发性能"""
+    max_connections: int = 100  # 连接池最大连接数
+    max_keepalive_connections: int = 20  # 最大保持活动的连接数
+    keepalive_expiry: float = 300.0  # 连接保持活动时间（秒），默认5分钟
+    stream_buffer_size: int = 65536  # 流式响应缓冲区大小（字节），默认64KB
+
 @dataclass
 class ProviderConfig:
     """提供商配置"""
@@ -23,7 +41,9 @@ class ProviderConfig:
     default_model: Optional[str] = None
     extra_headers: Dict[str, str] = field(default_factory=dict)
     api_version: Optional[str] = None  # 主要用于 Azure
-    timeout: float = 60.0  # 请求超时时间（秒）
+    timeout: float = 60.0  # 简单超时配置（秒），用于向后兼容
+    timeout_config: Optional[TimeoutConfig] = None  # 细粒度超时配置，优先于timeout使用
+    connection_pool_config: Optional[ConnectionPoolConfig] = None  # 连接池配置，None表示使用默认配置
     retry_config: Optional[RetryConfig] = None  # 重试配置，None表示使用默认配置
     log_config: Optional['LogConfig'] = None  # 日志配置，None表示使用默认配置
     metrics_enabled: bool = True  # 是否启用性能指标收集
