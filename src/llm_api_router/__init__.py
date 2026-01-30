@@ -45,6 +45,14 @@ from .metrics import (
     get_metrics_collector,
     set_metrics_collector,
 )
+from .cache import (
+    CacheConfig,
+    CacheManager,
+    CacheBackend,
+    MemoryCacheBackend,
+    RedisCacheBackend,
+    generate_cache_key,
+)
 
 __version__ = "0.1.2"
 
@@ -96,4 +104,11 @@ __all__ = [
     "AggregatedMetrics",
     "get_metrics_collector",
     "set_metrics_collector",
+    # Cache
+    "CacheConfig",
+    "CacheManager",
+    "CacheBackend",
+    "MemoryCacheBackend",
+    "RedisCacheBackend",
+    "generate_cache_key",
 ]

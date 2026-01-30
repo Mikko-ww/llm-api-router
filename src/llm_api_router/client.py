@@ -1,6 +1,7 @@
 from typing import List, Dict, Optional, Union, Iterator, AsyncIterator
 import httpx
 import logging
+from dataclasses import asdict
 from .types import (
     ProviderConfig, UnifiedRequest, UnifiedResponse, UnifiedChunk,
     EmbeddingRequest, EmbeddingResponse, ConnectionPoolConfig, TimeoutConfig
@@ -9,6 +10,7 @@ from .types import (
 from .exceptions import LLMRouterError
 from .factory import ProviderFactory
 from .logging_config import setup_logging, generate_request_id, get_logger
+from .cache import CacheManager, generate_cache_key
 
 # --- Synchronous Classes ---
 
@@ -40,10 +42,29 @@ class Completions:
             request_id=generate_request_id()
         )
         
+        # Streaming responses are not cached
         if stream:
             return self._client._provider.stream_request(self._client._http_client, request)
-        else:
-            return self._client._provider.send_request(self._client._http_client, request)
+        
+        # Try to get from cache (only for non-streaming)
+        cache_manager = self._client._cache_manager
+        if cache_manager and cache_manager.enabled:
+            cache_key = generate_cache_key(asdict(request))
+            cached_response = cache_manager.get(cache_key)
+            if cached_response is not None:
+                # Reconstruct response from cached data
+                return self._client._reconstruct_response(cached_response)
+        
+        # Not in cache or cache disabled, make actual request
+        response = self._client._provider.send_request(self._client._http_client, request)
+        
+        # Store in cache if enabled
+        if cache_manager and cache_manager.enabled:
+            cache_key = generate_cache_key(asdict(request))
+            # Convert response to dict for caching
+            cache_manager.set(cache_key, asdict(response))
+        
+        return response
 
 class Chat:
     def __init__(self, client: "Client"):
@@ -100,6 +121,12 @@ class Client:
         self._provider = self._get_provider(config)
         self.chat = Chat(self)
         self.embeddings = Embeddings(self)
+        
+        # Initialize cache manager
+        if config.cache_config:
+            self._cache_manager = CacheManager(config.cache_config)
+        else:
+            self._cache_manager = None
         
         # Initialize logging only if custom config is provided or not yet configured
         if config.log_config or not logging.getLogger("llm_api_router").handlers:
@@ -200,6 +227,49 @@ class Client:
         if collector:
             return collector.compare_providers()
         return []
+    
+    def get_cache_stats(self) -> Dict:
+        """
+        Get cache statistics
+        
+        Returns:
+            Dictionary containing cache statistics
+        """
+        if self._cache_manager:
+            return self._cache_manager.get_stats()
+        return {'enabled': False}
+    
+    def clear_cache(self):
+        """Clear all cached responses"""
+        if self._cache_manager:
+            self._cache_manager.clear()
+    
+    def _reconstruct_response(self, cached_data: Dict) -> UnifiedResponse:
+        """Reconstruct UnifiedResponse from cached dictionary"""
+        from .types import Usage, Message, Choice
+        
+        # Reconstruct Usage
+        usage = Usage(**cached_data['usage'])
+        
+        # Reconstruct Choices
+        choices = []
+        for choice_data in cached_data['choices']:
+            message = Message(**choice_data['message'])
+            choice = Choice(
+                index=choice_data['index'],
+                message=message,
+                finish_reason=choice_data['finish_reason']
+            )
+            choices.append(choice)
+        
+        return UnifiedResponse(
+            id=cached_data['id'],
+            object=cached_data['object'],
+            created=cached_data['created'],
+            model=cached_data['model'],
+            choices=choices,
+            usage=usage
+        )
 
     def close(self):
         self._http_client.close()
@@ -239,10 +309,29 @@ class AsyncCompletions:
             stop=stop
         )
         
+        # Streaming responses are not cached
         if stream:
             return self._client._provider.stream_request_async(self._client._http_client, request)
-        else:
-            return await self._client._provider.send_request_async(self._client._http_client, request)
+        
+        # Try to get from cache (only for non-streaming)
+        cache_manager = self._client._cache_manager
+        if cache_manager and cache_manager.enabled:
+            cache_key = generate_cache_key(asdict(request))
+            cached_response = cache_manager.get(cache_key)
+            if cached_response is not None:
+                # Reconstruct response from cached data
+                return self._client._reconstruct_response(cached_response)
+        
+        # Not in cache or cache disabled, make actual request
+        response = await self._client._provider.send_request_async(self._client._http_client, request)
+        
+        # Store in cache if enabled
+        if cache_manager and cache_manager.enabled:
+            cache_key = generate_cache_key(asdict(request))
+            # Convert response to dict for caching
+            cache_manager.set(cache_key, asdict(response))
+        
+        return response
 
 class AsyncChat:
     def __init__(self, client: "AsyncClient"):
@@ -299,6 +388,12 @@ class AsyncClient:
         self._provider = self._get_provider(config)
         self.chat = AsyncChat(self)
         self.embeddings = AsyncEmbeddings(self)
+        
+        # Initialize cache manager
+        if config.cache_config:
+            self._cache_manager = CacheManager(config.cache_config)
+        else:
+            self._cache_manager = None
         
         # Initialize logging only if custom config is provided or not yet configured
         if config.log_config or not logging.getLogger("llm_api_router").handlers:
@@ -399,6 +494,49 @@ class AsyncClient:
         if collector:
             return collector.compare_providers()
         return []
+    
+    def get_cache_stats(self) -> Dict:
+        """
+        Get cache statistics
+        
+        Returns:
+            Dictionary containing cache statistics
+        """
+        if self._cache_manager:
+            return self._cache_manager.get_stats()
+        return {'enabled': False}
+    
+    def clear_cache(self):
+        """Clear all cached responses"""
+        if self._cache_manager:
+            self._cache_manager.clear()
+    
+    def _reconstruct_response(self, cached_data: Dict) -> UnifiedResponse:
+        """Reconstruct UnifiedResponse from cached dictionary"""
+        from .types import Usage, Message, Choice
+        
+        # Reconstruct Usage
+        usage = Usage(**cached_data['usage'])
+        
+        # Reconstruct Choices
+        choices = []
+        for choice_data in cached_data['choices']:
+            message = Message(**choice_data['message'])
+            choice = Choice(
+                index=choice_data['index'],
+                message=message,
+                finish_reason=choice_data['finish_reason']
+            )
+            choices.append(choice)
+        
+        return UnifiedResponse(
+            id=cached_data['id'],
+            object=cached_data['object'],
+            created=cached_data['created'],
+            model=cached_data['model'],
+            choices=choices,
+            usage=usage
+        )
 
     async def close(self):
         await self._http_client.aclose()

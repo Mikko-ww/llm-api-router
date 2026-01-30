@@ -4,6 +4,7 @@ from typing import List, Optional, Dict, Any, Tuple, Union, TYPE_CHECKING
 if TYPE_CHECKING:
     from .logging_config import LogConfig
     from .metrics import MetricsCollector
+    from .cache import CacheConfig
 
 @dataclass
 class RetryConfig:
@@ -48,6 +49,7 @@ class ProviderConfig:
     log_config: Optional['LogConfig'] = None  # 日志配置，None表示使用默认配置
     metrics_enabled: bool = True  # 是否启用性能指标收集
     metrics_collector: Optional['MetricsCollector'] = None  # 自定义metrics收集器，None表示使用全局收集器
+    cache_config: Optional['CacheConfig'] = None  # 缓存配置，None表示禁用缓存
 
 @dataclass
 class Message:
