@@ -36,6 +36,13 @@ from .exceptions import (
     RetryExhaustedError,
 )
 from .logging_config import LogConfig, setup_logging, get_logger
+from .metrics import (
+    MetricsCollector,
+    RequestMetrics,
+    AggregatedMetrics,
+    get_metrics_collector,
+    set_metrics_collector,
+)
 
 __version__ = "0.1.2"
 
@@ -79,4 +86,10 @@ __all__ = [
     "LogConfig",
     "setup_logging",
     "get_logger",
+    # Metrics
+    "MetricsCollector",
+    "RequestMetrics",
+    "AggregatedMetrics",
+    "get_metrics_collector",
+    "set_metrics_collector",
 ]

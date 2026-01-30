@@ -107,6 +107,73 @@ class Client:
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
+    
+    def get_metrics_collector(self):
+        """
+        Get the metrics collector instance used by this client
+        
+        Returns:
+            MetricsCollector instance or None if metrics are disabled
+        """
+        if hasattr(self._provider, '_metrics_collector'):
+            return self._provider._metrics_collector
+        return None
+    
+    def get_metrics(self, provider: Optional[str] = None, model: Optional[str] = None):
+        """
+        Get raw metrics, optionally filtered by provider and/or model
+        
+        Args:
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
+            
+        Returns:
+            List of RequestMetrics or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.get_metrics(provider, model)
+        return []
+    
+    def get_aggregated_metrics(self, provider: Optional[str] = None, model: Optional[str] = None):
+        """
+        Get aggregated metrics grouped by provider and model
+        
+        Args:
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
+            
+        Returns:
+            List of AggregatedMetrics or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.get_aggregated_metrics(provider, model)
+        return []
+    
+    def export_metrics_prometheus(self) -> str:
+        """
+        Export metrics in Prometheus text format
+        
+        Returns:
+            Prometheus-formatted metrics string or empty string if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.export_prometheus()
+        return ""
+    
+    def compare_providers(self):
+        """
+        Compare performance across providers
+        
+        Returns:
+            List of provider comparison data or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.compare_providers()
+        return []
 
     def close(self):
         self._http_client.close()
@@ -213,6 +280,73 @@ class AsyncClient:
 
     def _get_provider(self, config: ProviderConfig):
         return ProviderFactory.get_provider(config)
+    
+    def get_metrics_collector(self):
+        """
+        Get the metrics collector instance used by this client
+        
+        Returns:
+            MetricsCollector instance or None if metrics are disabled
+        """
+        if hasattr(self._provider, '_metrics_collector'):
+            return self._provider._metrics_collector
+        return None
+    
+    def get_metrics(self, provider: Optional[str] = None, model: Optional[str] = None):
+        """
+        Get raw metrics, optionally filtered by provider and/or model
+        
+        Args:
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
+            
+        Returns:
+            List of RequestMetrics or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.get_metrics(provider, model)
+        return []
+    
+    def get_aggregated_metrics(self, provider: Optional[str] = None, model: Optional[str] = None):
+        """
+        Get aggregated metrics grouped by provider and model
+        
+        Args:
+            provider: Filter by provider (optional)
+            model: Filter by model (optional)
+            
+        Returns:
+            List of AggregatedMetrics or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.get_aggregated_metrics(provider, model)
+        return []
+    
+    def export_metrics_prometheus(self) -> str:
+        """
+        Export metrics in Prometheus text format
+        
+        Returns:
+            Prometheus-formatted metrics string or empty string if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.export_prometheus()
+        return ""
+    
+    def compare_providers(self):
+        """
+        Compare performance across providers
+        
+        Returns:
+            List of provider comparison data or empty list if metrics are disabled
+        """
+        collector = self.get_metrics_collector()
+        if collector:
+            return collector.compare_providers()
+        return []
 
     async def close(self):
         await self._http_client.aclose()

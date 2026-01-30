@@ -3,6 +3,7 @@ from typing import List, Optional, Dict, Any, Tuple, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .logging_config import LogConfig
+    from .metrics import MetricsCollector
 
 @dataclass
 class RetryConfig:
@@ -25,6 +26,8 @@ class ProviderConfig:
     timeout: float = 60.0  # 请求超时时间（秒）
     retry_config: Optional[RetryConfig] = None  # 重试配置，None表示使用默认配置
     log_config: Optional['LogConfig'] = None  # 日志配置，None表示使用默认配置
+    metrics_enabled: bool = True  # 是否启用性能指标收集
+    metrics_collector: Optional['MetricsCollector'] = None  # 自定义metrics收集器，None表示使用全局收集器
 
 @dataclass
 class Message:

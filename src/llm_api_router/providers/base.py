@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Iterator, AsyncIterator, Optional
 import httpx
+import time
 from ..types import (
     UnifiedRequest, UnifiedResponse, UnifiedChunk, ProviderConfig, RetryConfig,
     EmbeddingRequest, EmbeddingResponse
@@ -25,6 +26,13 @@ class BaseProvider(ABC):
         self.config = config
         self.retry_config = config.retry_config or RetryConfig()
         self.logger = get_logger(self.__class__.__name__)
+        
+        # Initialize metrics collector
+        self._metrics_enabled = config.metrics_enabled
+        self._metrics_collector = None
+        if self._metrics_enabled:
+            from ..metrics import get_metrics_collector
+            self._metrics_collector = config.metrics_collector or get_metrics_collector()
         
         # Store retry decorators configured with this provider's retry config
         from ..retry import with_retry, with_retry_async
@@ -142,6 +150,49 @@ class BaseProvider(ABC):
             if "detail" in error_data:
                 return error_data["detail"]
         return str(error_data)
+    
+    def _record_metrics(
+        self,
+        model: Optional[str],
+        latency_ms: float,
+        success: bool,
+        status_code: Optional[int] = None,
+        error_type: Optional[str] = None,
+        prompt_tokens: Optional[int] = None,
+        completion_tokens: Optional[int] = None,
+        total_tokens: Optional[int] = None,
+        stream: bool = False,
+        request_id: Optional[str] = None,
+    ) -> None:
+        """
+        Record metrics for a request
+        
+        Args:
+            model: Model name
+            latency_ms: Request latency in milliseconds
+            success: Whether the request was successful
+            status_code: HTTP status code
+            error_type: Error type if request failed
+            prompt_tokens: Number of prompt tokens
+            completion_tokens: Number of completion tokens
+            total_tokens: Total number of tokens
+            stream: Whether the request was streaming
+            request_id: Unique request ID
+        """
+        if self._metrics_enabled and self._metrics_collector:
+            self._metrics_collector.record_request(
+                provider=self.config.provider_type,
+                model=model,
+                latency_ms=latency_ms,
+                success=success,
+                status_code=status_code,
+                error_type=error_type,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                stream=stream,
+                request_id=request_id,
+            )
     
     def handle_request_error(self, error: Exception, provider_name: str, request_id: Optional[str] = None) -> None:
         """

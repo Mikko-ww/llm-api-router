@@ -167,20 +167,53 @@ class OpenAIProvider(BaseProvider):
         
         try:
             response = client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
-            latency_ms = int((time.time() - start_time) * 1000)
+            latency_ms = (time.time() - start_time) * 1000
             
             if response.status_code != 200:
+                # Record failure metrics
+                self._record_metrics(
+                    model=request.model or self.config.default_model,
+                    latency_ms=latency_ms,
+                    success=False,
+                    status_code=response.status_code,
+                    error_type=f"HTTP_{response.status_code}",
+                    stream=False,
+                    request_id=request.request_id,
+                )
                 self.handle_error_response(response, "OpenAI", request.request_id)
             
             result = self.convert_response(response.json())
             
+            # Record success metrics
+            self._record_metrics(
+                model=result.model,
+                latency_ms=latency_ms,
+                success=True,
+                status_code=200,
+                prompt_tokens=result.usage.prompt_tokens,
+                completion_tokens=result.usage.completion_tokens,
+                total_tokens=result.usage.total_tokens,
+                stream=False,
+                request_id=request.request_id,
+            )
+            
             # Log successful response
-            log_extra["latency_ms"] = latency_ms
+            log_extra["latency_ms"] = int(latency_ms)
             log_extra["tokens"] = result.usage.total_tokens
             self.logger.info("Chat completion successful", extra=log_extra)
             
             return result
         except httpx.RequestError as e:
+            latency_ms = (time.time() - start_time) * 1000
+            # Record failure metrics
+            self._record_metrics(
+                model=request.model or self.config.default_model,
+                latency_ms=latency_ms,
+                success=False,
+                error_type=type(e).__name__,
+                stream=False,
+                request_id=request.request_id,
+            )
             self.handle_request_error(e, "OpenAI", request.request_id)
 
     async def send_request_async(self, client: httpx.AsyncClient, request: UnifiedRequest) -> UnifiedResponse:
@@ -204,20 +237,53 @@ class OpenAIProvider(BaseProvider):
         
         try:
             response = await client.post(url, headers=self.headers, json=payload, timeout=self.config.timeout)
-            latency_ms = int((time.time() - start_time) * 1000)
+            latency_ms = (time.time() - start_time) * 1000
             
             if response.status_code != 200:
+                # Record failure metrics
+                self._record_metrics(
+                    model=request.model or self.config.default_model,
+                    latency_ms=latency_ms,
+                    success=False,
+                    status_code=response.status_code,
+                    error_type=f"HTTP_{response.status_code}",
+                    stream=False,
+                    request_id=request.request_id,
+                )
                 self.handle_error_response(response, "OpenAI", request.request_id)
             
             result = self.convert_response(response.json())
             
+            # Record success metrics
+            self._record_metrics(
+                model=result.model,
+                latency_ms=latency_ms,
+                success=True,
+                status_code=200,
+                prompt_tokens=result.usage.prompt_tokens,
+                completion_tokens=result.usage.completion_tokens,
+                total_tokens=result.usage.total_tokens,
+                stream=False,
+                request_id=request.request_id,
+            )
+            
             # Log successful response
-            log_extra["latency_ms"] = latency_ms
+            log_extra["latency_ms"] = int(latency_ms)
             log_extra["tokens"] = result.usage.total_tokens
             self.logger.info("Async chat completion successful", extra=log_extra)
             
             return result
         except httpx.RequestError as e:
+            latency_ms = (time.time() - start_time) * 1000
+            # Record failure metrics
+            self._record_metrics(
+                model=request.model or self.config.default_model,
+                latency_ms=latency_ms,
+                success=False,
+                error_type=type(e).__name__,
+                stream=False,
+                request_id=request.request_id,
+            )
             self.handle_request_error(e, "OpenAI", request.request_id)
 
     def stream_request(self, client: httpx.Client, request: UnifiedRequest) -> Iterator[UnifiedChunk]:
