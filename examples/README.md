@@ -109,5 +109,5 @@ with Client(providers[provider_name]) as client:
 ## 需要帮助？
 
 - 查看 [文档](https://llm-api-router.readthedocs.io/)
-- 提交 [Issue](https://github.com/your-repo/llm-api-router/issues)
+- 提交 [Issue](https://github.com/Mikko-ww/llm-api-router/issues)
 - 参考 [FAQ](../docs/faq.md)
