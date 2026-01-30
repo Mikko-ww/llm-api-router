@@ -18,6 +18,10 @@
 - **Function Calling**: Unified tool/function calling support for OpenAI and Anthropic providers.
 - **Connection Pool Optimization**: Configurable HTTP connection pooling with fine-grained timeout control for optimal performance and resource efficiency.
 - **Response Caching**: Optional response caching with memory and Redis backends to reduce redundant API calls and improve performance.
+- **Rate Limiting**: Client-side rate limiting with token bucket and sliding window algorithms to prevent API quota exhaustion.
+- **Prompt Templates**: Flexible template system with variable substitution, conditionals, loops, and built-in templates for common tasks.
+- **Conversation Management**: Intelligent conversation history management with token counting and multiple truncation strategies.
+- **Load Balancing**: Multi-endpoint load balancing with round-robin, weighted, least-latency, and failover strategies.
 
 ## Architecture Design
 
@@ -550,6 +554,112 @@ with Client(config) as client:
 ```
 
 **Note**: Ollama uses NDJSON (newline-delimited JSON) for streaming, which is automatically handled by the adapter.
+
+## Rate Limiting
+
+Control API request rates to avoid exceeding provider quotas:
+
+```python
+from llm_api_router import RateLimiter, RateLimiterConfig
+
+# Create rate limiter with token bucket algorithm
+config = RateLimiterConfig(
+    requests_per_minute=60,
+    tokens_per_minute=100000,
+    algorithm="token_bucket"  # or "sliding_window"
+)
+
+limiter = RateLimiter(config)
+
+# Check before making request
+if limiter.acquire():
+    # Make API call
+    pass
+else:
+    # Wait or handle rate limit
+    limiter.wait()
+```
+
+See [Rate Limiter Documentation](docs/rate-limiter.md) for details.
+
+## Prompt Templates
+
+Manage and render prompt templates with variable substitution:
+
+```python
+from llm_api_router import PromptTemplate, TemplateEngine, BuiltinTemplates
+
+# Simple variable substitution
+template = PromptTemplate(
+    name="greeting",
+    template="Hello {{name}}, you are a {{role}}."
+)
+
+engine = TemplateEngine()
+engine.register(template)
+prompt = engine.render("greeting", name="Alice", role="developer")
+
+# Use built-in templates
+summarize = BuiltinTemplates.summarize()
+qa = BuiltinTemplates.question_answering()
+```
+
+See [Prompt Templates Documentation](docs/prompt-templates.md) for details.
+
+## Conversation Management
+
+Manage conversation history with automatic token counting and truncation:
+
+```python
+from llm_api_router import ConversationManager, ConversationConfig
+
+# Create conversation manager
+config = ConversationConfig(
+    max_tokens=4000,
+    strategy="sliding_window",  # or "keep_recent", "importance_based"
+    preserve_system=True
+)
+
+manager = ConversationManager(config)
+manager.set_system_prompt("You are a helpful assistant.")
+
+# Add messages
+manager.add_user_message("Hello!")
+manager.add_assistant_message("Hi! How can I help you?")
+
+# Get messages for API (auto-truncated if needed)
+messages = manager.get_messages_for_api()
+```
+
+See [Conversation Management Documentation](docs/conversation-management.md) for details.
+
+## Load Balancing
+
+Distribute requests across multiple provider endpoints:
+
+```python
+from llm_api_router import LoadBalancer, Endpoint, LoadBalancerConfig
+
+# Define endpoints
+endpoints = [
+    Endpoint(name="primary", provider="openai", weight=3, priority=0),
+    Endpoint(name="backup", provider="anthropic", weight=1, priority=1),
+]
+
+# Create load balancer
+config = LoadBalancerConfig(failure_threshold=3, recovery_time=60.0)
+lb = LoadBalancer(endpoints=endpoints, strategy="weighted", config=config)
+
+# Get endpoint and track results
+endpoint = lb.get_endpoint()
+try:
+    # Make request with endpoint
+    lb.mark_success(endpoint, latency=0.5)
+except Exception:
+    lb.mark_failure(endpoint)
+```
+
+See [Load Balancer Documentation](docs/load-balancer.md) for details.
 
 ## Development & Testing
 
