@@ -18,3 +18,6 @@ build/
 .coverage
 coverage.xml
 htmlcov/
+
+# 忽略 所有的 node_modules 
+node_modules/
